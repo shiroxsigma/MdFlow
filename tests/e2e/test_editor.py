@@ -104,6 +104,25 @@ def test_file_explorer_renders_selected_directory(app_page):
     expect(app_page.locator("#explorer-tree")).to_contain_text("flow.md")
 
 
+def test_standalone_plantuml_file_opens_as_source_and_preview(app_page):
+    source = "@startuml\nAlice -> Bob: hello\n@enduml"
+    app_page.evaluate("""
+      async (source) => {
+        rememberFile = async () => {};
+        const handle = {
+          kind: 'file', name: 'diagram.puml',
+          async queryPermission() { return 'granted'; },
+          async getFile() { return {text: async () => source, lastModified: 1}; },
+        };
+        await loadFileHandle(handle);
+      }
+    """, source)
+    expect(app_page.locator("#file-name")).to_have_text("diagram.puml")
+    assert app_page.evaluate("editor.getValue()") == source
+    assert app_page.evaluate("state.documentKind") == "plantuml"
+    expect(app_page.locator("#preview .plantuml-box")).to_have_count(1)
+
+
 def test_generate_all_mermaid_paths(app_page):
     app_page.evaluate(r"""editor.setValue(`\n\`\`\`mermaid
 %% id: all-routes

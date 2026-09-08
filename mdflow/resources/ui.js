@@ -11,11 +11,21 @@ let llmValidationTimer = null;
 const state = { md: "", selectedId: "", preset: "", diagrams: [], zoom: 1, renderId: 0,
   llmSelection: null, llmMode: "ask", syncingScroll: false, fileHandle: null,
   directoryHandle: null, activeExplorerPath: "", lastSaved: "", lastModified: 0,
-  llmServers: [], previewRenderDepth: 0, recoveryTimer: null, autoSaveTimer: null };
+  llmServers: [], previewRenderDepth: 0, recoveryTimer: null, autoSaveTimer: null,
+  documentKind: "markdown" };
 
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+function documentKindForName(name) {
+  return /\.(?:puml|plantuml|iuml)$/i.test(name || "") ? "plantuml" : "markdown";
+}
+
+function renderableText() {
+  const text = editorText();
+  return state.documentKind === "plantuml" ? `\`\`\`plantuml\n${text}\n\`\`\`` : text;
+}
 
 async function api(path, body) {
   const response = await fetch(path, {
@@ -326,7 +336,7 @@ async function render() {
   try {
     if (md) {
       const env = { mmIndex: 0, pumlIndex: 0, selectedId: state.selectedId, injected: res.injected || "" };
-      preview.innerHTML = md.render(editorText(), env);
+      preview.innerHTML = md.render(renderableText(), env);
     } else {
       preview.innerHTML = "<pre>" + escapeHtml(editorText()) + "</pre>";
     }
@@ -490,16 +500,20 @@ function syncEditorFromPreview() {
 async function onOpen() {
   if (window.showOpenFilePicker) {
     try {
-      const [handle] = await window.showOpenFilePicker({ types: [{ description: "Markdown", accept: { "text/markdown": [".md", ".markdown"] } }] });
+      const [handle] = await window.showOpenFilePicker({ types: [
+        { description: "Markdown", accept: { "text/markdown": [".md", ".markdown"] } },
+        { description: "PlantUML", accept: { "text/plain": [".puml", ".plantuml", ".iuml"] } },
+      ] });
       await loadFileHandle(handle); return;
     } catch (e) { if (e.name === "AbortError") return; }
   }
-  const file = await chooseFile(".md,text/markdown,text/plain");
+  const file = await chooseFile(".md,.markdown,.puml,.plantuml,.iuml,text/markdown,text/plain");
   if (file) {
+    state.documentKind = documentKindForName(file.name);
     setEditorText(await file.text());
     $("file-name").textContent = file.name;
     state.fileHandle = null; markSaved();
-    await render(); toast("Markdownを開きました");
+    await render(); toast(state.documentKind === "plantuml" ? "PlantUMLを開きました" : "Markdownを開きました");
   }
 }
 
@@ -550,9 +564,9 @@ async function appendDirectoryEntries(handle, host, parentPath, depth) {
         if (!loaded) { loaded = true; await appendDirectoryEntries(entry, children, path, depth + 1); } };
       container.append(button, children); host.appendChild(container);
     } else {
-      const supported = /\.(md|markdown|txt)$/i.test(entry.name);
+      const supported = /\.(md|markdown|txt|puml|plantuml|iuml)$/i.test(entry.name);
       const button = explorerButton(entry.name, "", depth); button.dataset.path = path;
-      if (!supported) { button.classList.add("unsupported"); button.title = "Markdown／テキストファイルのみ編集できます"; }
+      if (!supported) { button.classList.add("unsupported"); button.title = "Markdown／PlantUML／テキストファイルのみ編集できます"; }
       else button.onclick = () => loadFileHandle(entry, `${state.directoryHandle.name}/${path}`).catch((e) => toast(e.message));
       host.appendChild(button);
     }
@@ -601,10 +615,12 @@ function markSaved() {
 async function loadFileHandle(handle, displayPath = handle.name) {
   if (!await ensureFilePermission(handle, false)) throw new Error("ファイルの読み取りが許可されませんでした");
   const file = await handle.getFile(); state.fileHandle = handle; state.lastModified = file.lastModified;
+  state.documentKind = documentKindForName(handle.name);
   setEditorText(await file.text()); $("file-name").textContent = displayPath; state.activeExplorerPath = displayPath.replace(/^[^/]+\//, "");
   document.querySelectorAll(".explorer-item.active").forEach((item) => item.classList.remove("active"));
   document.querySelector(`.explorer-item[data-path="${CSS.escape(state.activeExplorerPath)}"]`)?.classList.add("active");
-  markSaved(); await rememberFile(handle); await render(); toast("Markdownを開きました");
+  markSaved(); await rememberFile(handle); await render();
+  toast(state.documentKind === "plantuml" ? "PlantUMLを開きました" : "Markdownを開きました");
 }
 
 async function writeFileHandle() {
