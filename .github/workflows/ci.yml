@@ -17,7 +17,16 @@ jobs:
           cache: pip
       - run: pip install -r requirements-dev.txt
       - run: ruff check .
-      - run: pytest tests --ignore=tests/e2e -q
+      # Keep unit collection isolated from the Playwright conftest.  Some
+      # pytest/plugin combinations still import nested conftest files while
+      # walking a broadly specified tests directory.
+      - run: pytest tests/test_*.py -q --junitxml=test-results/unit.xml
+      - uses: actions/upload-artifact@v5
+        if: ${{ !cancelled() }}
+        with:
+          name: unit-test-results
+          path: test-results/
+          if-no-files-found: ignore
 
   browser:
     runs-on: ubuntu-latest
