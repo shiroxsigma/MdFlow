@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingRes
 from nicegui import app, ui
 from starlette.background import BackgroundTask
 
-from . import __version__, edit_safety, llm_context, local_llm, plantuml, pptx_io, webapi
+from . import __version__, edit_safety, llm_connections, llm_context, local_llm, plantuml, pptx_io, webapi
 
 _RES = Path(__file__).parent / "resources"
 _SAMPLE = Path(__file__).parents[1] / "samples" / "login.md"
@@ -55,34 +55,60 @@ def plantuml_diagnostics() -> dict:
 
 @app.get("/api/llm/status")
 def llm_status() -> dict:
-    cfg = local_llm.config()
     try:
+        cfg = local_llm.config()
         return {"available": True, "provider": cfg.provider, "url": cfg.url,
                 "model": cfg.model, "models": local_llm.models(cfg)}
-    except local_llm.LocalLlmError as exc:
-        return {"available": False, "provider": cfg.provider, "url": cfg.url,
-                "model": cfg.model, "models": [], "error": str(exc)}
+    except (local_llm.LocalLlmError, ValueError) as exc:
+        return {"available": False, "models": [], "error": str(exc)}
+
+
+@app.get("/api/llm/servers")
+def llm_servers() -> dict:
+    try:
+        return {"servers": llm_connections.load_servers(),
+                "active": llm_connections.get_active_server_index(),
+                "config_path": str(llm_connections.config_path())}
+    except ValueError as exc:
+        return {"servers": [], "active": 0, "error": str(exc),
+                "config_path": str(llm_connections.config_path())}
+
+
+@app.post("/api/llm/settings")
+def llm_settings(payload: dict) -> dict:
+    try:
+        selected = llm_connections.update_selection(int(payload.get("active_server", 0)),
+                                                    payload.get("model"))
+        return {"ok": True, "server": selected,
+                "active": llm_connections.get_active_server_index()}
+    except (TypeError, ValueError) as exc:
+        return {"ok": False, "error": str(exc)}
 
 
 @app.post("/api/llm/models")
 def llm_models(payload: dict) -> dict:
     try:
-        cfg = local_llm.config_from(payload.get("provider", ""), payload.get("url", ""),
-                                    payload.get("model", ""))
-        return {"available": True, "models": local_llm.models(cfg)}
-    except local_llm.LocalLlmError as exc:
+        cfg = _llm_config_from_payload(payload)
+        return {"available": True, "models": local_llm.models(cfg), "current": cfg.model}
+    except (local_llm.LocalLlmError, TypeError, ValueError) as exc:
         return {"available": False, "models": [], "error": str(exc)}
+
+
+def _llm_config_from_payload(payload: dict) -> local_llm.Config:
+    if "server_index" in payload:
+        return local_llm.config_for_server(int(payload["server_index"]))
+    return local_llm.config_from(payload.get("provider", ""), payload.get("url", ""),
+                                 payload.get("model", ""))
 
 
 @app.post("/api/llm/chat")
 def llm_chat(payload: dict) -> dict:
     try:
-        cfg = local_llm.config_from(payload.get("provider", ""), payload.get("url", ""),
-                                    payload.get("model", ""))
+        cfg = _llm_config_from_payload(payload)
         answer = local_llm.chat(payload.get("instruction", ""), payload.get("text", ""),
                                 payload.get("mode", "ask"), payload.get("model", ""), cfg)
         return {"answer": answer}
-    except local_llm.LocalLlmError as exc:
+    except (local_llm.LocalLlmError, TypeError, ValueError) as exc:
         return {"error": str(exc)}
 
 
@@ -90,14 +116,13 @@ def llm_chat(payload: dict) -> dict:
 def llm_stream(payload: dict) -> StreamingResponse:
     def generate():
         try:
-            cfg = local_llm.config_from(payload.get("provider", ""), payload.get("url", ""),
-                                        payload.get("model", ""))
+            cfg = _llm_config_from_payload(payload)
             yield from local_llm.stream_chat(
                 payload.get("instruction", ""), payload.get("text", ""),
                 payload.get("mode", "ask"), payload.get("model", ""), cfg,
                 max(10, min(600, int(payload.get("timeout", 120)))),
             )
-        except (local_llm.LocalLlmError, ValueError) as exc:
+        except (local_llm.LocalLlmError, TypeError, ValueError) as exc:
             yield f"\n\x1eMDFLOW_ERROR:{exc}"
     return StreamingResponse(generate(), media_type="text/plain; charset=utf-8")
 

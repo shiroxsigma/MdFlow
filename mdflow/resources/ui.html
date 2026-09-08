@@ -70,10 +70,12 @@
     <section id="llm-panel">
       <div class="modal-title">✦ Local LLM <span id="llm-status" class="badge">確認中...</span></div>
       <details id="llm-settings"><summary>接続設定</summary><div class="settings-grid">
-        <label class="ctl">方式</label><select id="llm-provider"><option value="openai">LM Studio / OpenAI互換</option><option value="ollama">Ollama</option></select>
-        <label class="ctl">URL</label><input id="llm-url" value="http://127.0.0.1:1234/v1">
+        <label class="ctl">接続先</label><select id="llm-server"></select>
+        <label class="ctl">方式</label><input id="llm-provider" readonly>
+        <label class="ctl">URL</label><input id="llm-url" readonly>
+        <label class="ctl">設定ファイル</label><code id="llm-config-path" class="muted"></code>
         <label class="ctl">タイムアウト</label><input id="llm-timeout" type="number" min="10" max="600" value="120">
-        <button id="llm-connect">接続して保存</button>
+        <button id="llm-connect">接続先を選択して保存</button>
       </div></details>
       <div class="llm-row"><label class="ctl">用途</label><select id="llm-purpose"><option value="quick">文章修正・補完</option><option value="diagram">図の生成・修正</option><option value="review">設計レビュー</option></select>
       <label class="ctl">モデル</label><select id="llm-model"></select>

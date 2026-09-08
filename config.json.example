@@ -1,0 +1,17 @@
+{
+  "servers": [
+    {
+      "name": "LM Studio",
+      "provider": "openai",
+      "base_url": "http://127.0.0.1:1234/v1",
+      "model": ""
+    },
+    {
+      "name": "Ollama",
+      "provider": "ollama",
+      "base_url": "http://127.0.0.1:11434",
+      "model": ""
+    }
+  ],
+  "active_server": 0
+}

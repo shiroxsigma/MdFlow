@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from . import llm_connections
+
 
 class LocalLlmError(RuntimeError):
     pass
@@ -20,10 +22,15 @@ class Config:
 
 
 def config() -> Config:
-    provider = os.environ.get("MDFLOW_LLM_PROVIDER", "ollama").lower()
-    default_url = "http://127.0.0.1:11434" if provider == "ollama" else "http://127.0.0.1:1234/v1"
-    return Config(provider, os.environ.get("MDFLOW_LLM_URL", default_url).rstrip("/"),
-                  os.environ.get("MDFLOW_LLM_MODEL", ""))
+    selected = llm_connections.server()
+    provider = os.environ.get("MDFLOW_LLM_PROVIDER", selected["provider"]).lower()
+    return Config(provider, os.environ.get("MDFLOW_LLM_URL", selected["base_url"]).rstrip("/"),
+                  os.environ.get("MDFLOW_LLM_MODEL", selected["model"]))
+
+
+def config_for_server(index: int) -> Config:
+    selected = llm_connections.server(index)
+    return Config(selected["provider"], selected["base_url"], selected["model"])
 
 
 def config_from(provider: str = "", url: str = "", model: str = "") -> Config:

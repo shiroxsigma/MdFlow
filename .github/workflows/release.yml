@@ -36,7 +36,7 @@ jobs:
           } finally {
             Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
           }
-      - run: Compress-Archive -Path dist/MdFlow.exe,README.md,CHANGELOG.md -DestinationPath dist/MdFlow-Windows.zip
+      - run: Compress-Archive -Path dist/MdFlow.exe,config.json.example,README.md,CHANGELOG.md -DestinationPath dist/MdFlow-Windows.zip
       - uses: actions/upload-artifact@v6
         with:
           name: MdFlow-Windows

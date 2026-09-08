@@ -9,6 +9,6 @@
 - 整合性    : 復元時に mermaid の hash を照合し、不一致は警告
 """
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 SCHEMA_VERSION = 1
 PAYLOAD_PREFIX = "MDFLOW:v1:"

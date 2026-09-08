@@ -127,6 +127,24 @@ def test_llm_diff_and_stop(app_page):
     expect(app_page.locator("#llm-answer")).to_contain_text("生成を停止しました")
 
 
+def test_llm_connection_list_comes_from_json_api(app_page):
+    app_page.route(re.compile(r".*/api/llm/servers"), lambda route: route.fulfill(
+        status=200, content_type="application/json", body='{"servers":['
+        '{"name":"Studio A","provider":"openai","base_url":"http://127.0.0.1:1234/v1","model":"a"},'
+        '{"name":"Ollama B","provider":"ollama","base_url":"http://127.0.0.1:11434","model":"b"}'
+        '],"active":1,"config_path":"config.json"}'))
+    app_page.route(re.compile(r".*/api/llm/models"), lambda route: route.fulfill(
+        status=200, content_type="application/json", body='{"available":true,"models":["b"],"current":"b"}'))
+    app_page.route(re.compile(r".*/api/llm/settings"), lambda route: route.fulfill(
+        status=200, content_type="application/json", body='{"ok":true,"active":1}'))
+    app_page.locator("#btn-llm").click()
+    expect(app_page.locator("#llm-server")).to_have_value("1")
+    expect(app_page.locator("#llm-server")).to_contain_text("Studio A")
+    expect(app_page.locator("#llm-url")).to_have_value("http://127.0.0.1:11434")
+    expect(app_page.locator("#llm-config-path")).to_have_text("config.json")
+    assert app_page.evaluate("JSON.parse(localStorage.getItem('mdflow.llm')).url") is None
+
+
 def test_llm_requires_confirmation_and_saves_history(app_page):
     app_page.route(re.compile(r".*/api/llm/models"), lambda route: route.fulfill(
         status=200, content_type="application/json", body='{"available":true,"models":["e2e-model"]}'))

@@ -11,7 +11,7 @@ let llmValidationTimer = null;
 const state = { md: "", selectedId: "", preset: "", diagrams: [], zoom: 1, renderId: 0,
   llmSelection: null, llmMode: "ask", syncingScroll: false, fileHandle: null,
   directoryHandle: null, activeExplorerPath: "", lastSaved: "", lastModified: 0,
-  recoveryTimer: null, autoSaveTimer: null };
+  llmServers: [], recoveryTimer: null, autoSaveTimer: null };
 
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) =>
@@ -687,8 +687,6 @@ async function openLlm() {
   state.llmSelection = editor ? editor.getSelection() : null;
   const selected = editor && !state.llmSelection.isEmpty();
   const saved = JSON.parse(localStorage.getItem("mdflow.llm") || "{}");
-  $("llm-provider").value = saved.provider || "openai";
-  $("llm-url").value = saved.url || "http://127.0.0.1:1234/v1";
   $("llm-timeout").value = saved.timeout || 120;
   $("llm-purpose").value = saved.purpose || "quick";
   $("llm-policy").value = saved.policy || "all";
@@ -700,30 +698,65 @@ async function openLlm() {
   $("llm-backdrop").classList.remove("hidden");
   $("llm-instruction").focus();
   updateLlmScope();
-  await connectLlm(false);
+  try { await loadLlmServers(); await connectLlm(false); }
+  catch (e) { $("llm-status").textContent = "設定エラー"; $("llm-status").className = "badge danger";
+    $("llm-result").classList.remove("hidden"); $("llm-answer").textContent = e.message; }
 }
 
 function llmSettings() {
-  return { provider: $("llm-provider").value, url: $("llm-url").value.trim(),
+  return { server_index: Number($("llm-server").value || 0),
     timeout: Number($("llm-timeout").value) || 120, purpose: $("llm-purpose").value,
     policy: $("llm-policy").value,
     roles: JSON.parse(localStorage.getItem("mdflow.llm.roles") || "{}") };
 }
 
+function saveLlmPreferences(settings) {
+  localStorage.setItem("mdflow.llm", JSON.stringify({ timeout: settings.timeout,
+    purpose: settings.purpose, policy: settings.policy }));
+}
+
+function applySelectedLlmServer() {
+  const selected = state.llmServers[Number($("llm-server").value || 0)];
+  $("llm-provider").value = selected?.provider || "";
+  $("llm-url").value = selected?.base_url || "";
+}
+
+async function loadLlmServers() {
+  const info = await api("/api/llm/servers");
+  $("llm-config-path").textContent = info.config_path || "config.json";
+  if (info.error) throw new Error(info.error);
+  state.llmServers = info.servers || [];
+  const select = $("llm-server"); select.innerHTML = "";
+  state.llmServers.forEach((server, index) => { const option = document.createElement("option");
+    option.value = String(index); option.textContent = server.name || server.base_url; select.appendChild(option); });
+  select.value = String(info.active || 0); applySelectedLlmServer();
+}
+
 async function connectLlm(notify = true) {
-  const settings = llmSettings(); localStorage.setItem("mdflow.llm", JSON.stringify(settings));
+  const settings = llmSettings(); saveLlmPreferences(settings);
   const status = $("llm-status"); status.textContent = "確認中..."; status.className = "badge";
   try {
+    if (notify) {
+      const saved = await api("/api/llm/settings", { active_server: settings.server_index });
+      if (!saved.ok) throw new Error(saved.error || "接続先を保存できませんでした");
+    }
     const info = await api("/api/llm/models", settings);
     const models = $("llm-model"); models.innerHTML = "";
     (info.models || []).forEach((name) => { const option = document.createElement("option"); option.value = name; option.textContent = name; models.appendChild(option); });
     const roleModel = settings.roles[settings.purpose];
     if (roleModel && [...models.options].some((o) => o.value === roleModel)) models.value = roleModel;
+    else if (info.current && [...models.options].some((o) => o.value === info.current)) models.value = info.current;
     status.textContent = info.available ? `${settings.provider} ✓` : "未接続";
     status.className = `badge ${info.available ? "ok" : "danger"}`;
     if (!info.available) { $("llm-result").classList.remove("hidden"); $("llm-answer").textContent = info.error; }
-    else if (notify) toast("LLM接続設定を保存しました");
-  } catch (e) { status.textContent = "未接続"; status.className = "badge danger"; }
+    else if (notify) toast("LLM接続先をconfig.jsonへ保存しました");
+  } catch (e) { status.textContent = "未接続"; status.className = "badge danger"; status.title = e.message; }
+}
+
+async function saveLlmModel() {
+  const result = await api("/api/llm/settings", { active_server: Number($("llm-server").value || 0),
+    model: $("llm-model").value });
+  if (!result.ok) toast(result.error || "モデルを保存できませんでした");
 }
 
 function llmTarget() {
@@ -764,7 +797,7 @@ async function runLlm(mode) {
     $("llm-token-estimate").textContent = `約${Math.ceil(target.text.length / 3).toLocaleString()} tokens`;
   }
   state.llmTargetRange = target.range;
-  localStorage.setItem("mdflow.llm", JSON.stringify(settings));
+  saveLlmPreferences(settings);
   settings.roles[settings.purpose] = $("llm-model").value;
   localStorage.setItem("mdflow.llm.roles", JSON.stringify(settings.roles));
   state.llmMode = mode; $("llm-result").classList.remove("hidden");
@@ -914,7 +947,8 @@ function wire() {
   $("btn-print-pdf").onclick = () => window.print();
   $("llm-close").onclick = () => { if (llmAbort) llmAbort.abort(); $("llm-backdrop").classList.add("hidden"); };
   $("llm-connect").onclick = () => connectLlm(true);
-  $("llm-provider").onchange = () => { $("llm-url").value = $("llm-provider").value === "ollama" ? "http://127.0.0.1:11434" : "http://127.0.0.1:1234/v1"; };
+  $("llm-server").onchange = () => { applySelectedLlmServer(); connectLlm(false); };
+  $("llm-model").onchange = saveLlmModel;
   $("llm-purpose").onchange = () => { const roles = JSON.parse(localStorage.getItem("mdflow.llm.roles") || "{}"); const model = roles[$("llm-purpose").value]; if (model && [...$("llm-model").options].some((o) => o.value === model)) $("llm-model").value = model; updateLlmScope(); };
   $("llm-scope").onchange = updateLlmScope;
   $("llm-history-open").onclick = showLlmHistory;

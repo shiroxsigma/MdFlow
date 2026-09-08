@@ -9,6 +9,9 @@ dist/
 *.spec
 test-results/
 playwright-report/
+config.json
+config.json
+config.json.tmp
 
 # 同梱物（セットアップ時に取得）
 mdflow/resources/vendor/

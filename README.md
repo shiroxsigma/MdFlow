@@ -25,6 +25,7 @@ Python 3.12を推奨します。
 ```powershell
 python -m venv .venv
 .venv\Scripts\python -m pip install -r requirements.txt
+Copy-Item config.json.example config.json
 .venv\Scripts\python scripts/fetch_markdown_it.py
 .venv\Scripts\python scripts/fetch_mermaid.py
 .venv\Scripts\python scripts/fetch_monaco.py
@@ -87,7 +88,26 @@ PlantUMLは外部サーバーを使わず、ローカルプロセスで描画し
 
 ## ローカルLLM
 
-標準でOllamaに対応し、画面の接続設定からLM StudioなどのOpenAI互換APIも選択できます。
+標準でOllamaに対応し、LM StudioなどのOpenAI互換APIも選択できます。接続先はCodeWithPixieと
+同じ`servers[]`／`active_server`形式の`config.json`で管理します。
+
+```json
+{
+  "servers": [
+    {
+      "name": "LM Studio",
+      "provider": "openai",
+      "base_url": "http://127.0.0.1:1234/v1",
+      "model": ""
+    }
+  ],
+  "active_server": 0
+}
+```
+
+`provider`は`openai`または`ollama`です。画面では登録済み接続先とロード済みモデルを選択でき、
+選択結果は`config.json`へ保存されます。実ファイルはGit管理外で、APIキー項目は使用・公開しません。
+別の設定ファイルを使う場合は`MDFLOW_CONFIG`にパスを指定できます。
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/setup_local_llm_windows.ps1 -Model "モデル名"
@@ -101,7 +121,7 @@ $env:MDFLOW_LLM_URL = "http://127.0.0.1:1234/v1"
 $env:MDFLOW_LLM_MODEL = "モデル名"
 ```
 
-設定はブラウザ内に保存され、APIキーをソースや設定ファイルへ書き込みません。質問対象は選択範囲、
+タイムアウトや用途などの画面設定だけがブラウザ内に保存されます。質問対象は選択範囲、
 現在の見出し、関連箇所、文書全体から選べます。関連検索は見出し単位の語句・日本語bigram一致を使う
 ローカル処理です。編集案はMonaco Diffで確認し、図IDと`mdflow-mapping`を保護してから適用します。
 
