@@ -141,9 +141,10 @@ def enumerate_flow_paths(code: str, *, limit: int = 100) -> FlowPaths:
     if not is_flowchart(code):
         return FlowPaths()
     edges = flow_edges(code)
-    nodes = node_ids_ordered(code)
-    if not nodes:
+    if not edges:
         return FlowPaths()
+    connected = {node for edge in edges for node in edge}
+    nodes = [node for node in node_ids_ordered(code) if node in connected]
     outgoing: dict[str, list[str]] = {node: [] for node in nodes}
     incoming: dict[str, int] = {node: 0 for node in nodes}
     for source, target in edges:

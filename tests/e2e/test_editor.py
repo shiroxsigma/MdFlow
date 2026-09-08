@@ -83,7 +83,6 @@ def test_file_explorer_renders_selected_directory(app_page):
 
 
 def test_generate_all_mermaid_paths(app_page):
-    app_page.on("dialog", lambda dialog: dialog.accept())
     app_page.evaluate(r"""editor.setValue(`\n\`\`\`mermaid
 %% id: all-routes
 flowchart TD
@@ -94,13 +93,16 @@ flowchart TD
   D --> E
 \`\`\``)""")
     app_page.locator("#sel-diagram option[value='all-routes']").wait_for(state="attached", timeout=10_000)
-    app_page.locator("details.toolbar-menu").nth(1).locator("summary").click()
-    app_page.locator("#sel-diagram").select_option("all-routes")
-    app_page.locator("#btn-generate-paths").click()
+    app_page.evaluate("document.getElementById('sel-diagram').value = 'all-routes'; state.selectedId = 'all-routes'")
+    app_page.locator("#btn-generate-paths-inline").click()
     app_page.wait_for_function("editor.getValue().includes('自動経路 01')")
+    expect(app_page.locator("#path-generation-status")).to_contain_text("2件の経路を作成")
+    expect(app_page.locator("#preset-buttons")).to_contain_text("自動経路 02")
     text = app_page.evaluate("editor.getValue()")
     assert "A → B → C → E" in text
     assert "A → B → D → E" in text
+    app_page.evaluate("editor.trigger('e2e', 'undo', null)")
+    assert "自動経路 01" not in app_page.evaluate("editor.getValue()")
 
 
 def test_command_palette(app_page):

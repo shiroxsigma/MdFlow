@@ -67,9 +67,13 @@ function toast(msg) {
 function editorText() { return editor ? editor.getValue() : $("editor-fallback").value; }
 function setEditorText(v, preserveView = false) {
   if (!editor) { $("editor-fallback").value = v; return; }
-  const viewState = preserveView ? editor.saveViewState() : null;
-  editor.setValue(v);
-  if (viewState) editor.restoreViewState(viewState);
+  if (!preserveView) { editor.setValue(v); return; }
+  const viewState = editor.saveViewState();
+  editor.pushUndoStop();
+  editor.executeEdits("mdflow-document-update", [{ range: editor.getModel().getFullModelRange(),
+    text: v, forceMoveMarkers: true }]);
+  editor.pushUndoStop();
+  editor.restoreViewState(viewState);
 }
 
 function currentFenceLanguage(model, line) {
@@ -702,21 +706,26 @@ function closeCondModal() { $("modal-backdrop").classList.add("hidden"); }
 
 async function generateAllPaths() {
   const diagram = state.diagrams.find((item) => item.id === state.selectedId);
-  if (!diagram) { toast("Mermaid flowchartを選択してください"); return; }
+  const status = $("path-generation-status");
+  const buttons = [$("btn-generate-paths"), $("btn-generate-paths-inline")];
+  const showStatus = (message, type = "") => { status.textContent = message;
+    status.className = type || ""; status.classList.remove("hidden"); };
+  if (!diagram) { showStatus("Mermaid flowchartを選択してください", "error"); return; }
+  buttons.forEach((button) => { button.disabled = true; });
+  showStatus(`${diagram.id} の経路を解析中...`);
   try {
     const result = await api("/api/preset/all-paths", {
       md: editorText(), diagram_id: state.selectedId, limit: 100,
     });
-    if (result.error) { toast(result.error); return; }
-    const preview = (result.paths || []).slice(0, 8).map((path, index) =>
-      `${index + 1}. ${path.join(" → ")}`).join("\n");
-    const suffix = result.count > 8 ? `\n…ほか${result.count - 8}件` : "";
-    if (!confirm(`${result.count}件の全経路プリセットを生成します。\n\n${preview}${suffix}`)) return;
+    if (result.error) { showStatus(result.error, "error"); toast(result.error); return; }
     setEditorText(result.md, true);
     await render();
     const warning = (result.warnings || []).join(" / ");
-    toast(`${result.count}件の経路を生成しました${warning ? `（${warning}）` : ""}`);
-  } catch (e) { toast("全経路の生成に失敗しました: " + e.message); }
+    const message = `${result.count}件の経路を作成しました。上の経路ボタンから選択できます${warning ? `（${warning}）` : ""}`;
+    showStatus(message, "ok"); toast(message);
+  } catch (e) { const message = "全経路の生成に失敗しました: " + e.message;
+    showStatus(message, "error"); toast(message); }
+  finally { buttons.forEach((button) => { button.disabled = false; }); }
 }
 
 async function openLlm() {
@@ -968,6 +977,7 @@ function wire() {
   $("btn-import").onclick = onImport;
   $("btn-add-cond").onclick = openCondModal;
   $("btn-generate-paths").onclick = generateAllPaths;
+  $("btn-generate-paths-inline").onclick = generateAllPaths;
   $("btn-open-folder").onclick = openExplorerFolder;
   $("btn-refresh-folder").onclick = refreshExplorer;
   $("btn-insert-template").onclick = insertDiagramTemplate;

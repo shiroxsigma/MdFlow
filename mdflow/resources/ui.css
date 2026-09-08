@@ -146,6 +146,10 @@ button.accent {
 #route-picker { display: flex; align-items: flex-start; gap: 7px; }
 #quick-diagram { flex: 0 0 auto; max-width: 110px; padding: 3px 6px; color: var(--accent2); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #preset-buttons { flex: 1; display: flex; gap: 5px; overflow-x: auto; padding-bottom: 3px; }
+#btn-generate-paths-inline { flex: 0 0 auto; color: var(--accent2); }
+#path-generation-status { margin: 3px 0 2px 130px; font-size: 11px; color: var(--muted); }
+#path-generation-status.ok { color: var(--accent2); }
+#path-generation-status.error { color: var(--danger); }
 .preset-chip { flex: 0 0 auto; max-width: 260px; padding: 3px 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); background: var(--bg); }
 .preset-chip.active { color: #10201e; background: var(--accent2); border-color: var(--accent2); }
 .preset-chip.matched:not(.active) { color: var(--accent2); border-color: var(--accent2); }

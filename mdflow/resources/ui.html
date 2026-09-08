@@ -18,7 +18,7 @@
     </div></details>
     <details class="toolbar-menu"><summary>図</summary><div class="toolbar-popover wide">
       <label class="ctl">図</label><select id="sel-diagram"></select><label class="ctl">プリセット</label><select id="sel-preset"></select>
-      <button id="btn-add-cond">＋条件を登録</button><button id="btn-generate-paths">全経路を自動生成</button><button id="btn-export" class="accent">選択図をPPTへ</button>
+      <button id="btn-add-cond">＋条件を登録</button><button id="btn-generate-paths">全経路を作成</button><button id="btn-export" class="accent">選択図をPPTへ</button>
     </div></details>
     <button id="btn-llm">✦ AI</button>
     <button id="btn-command" title="コマンドパレット (Ctrl+Shift+P)">⌘</button>
@@ -39,7 +39,8 @@
         </div>
       </div>
       <div id="cond-strip">
-        <div id="route-picker"><label class="ctl">表示経路</label><span id="quick-diagram"></span><div id="preset-buttons"></div></div>
+        <div id="route-picker"><label class="ctl">表示経路</label><span id="quick-diagram"></span><div id="preset-buttons"></div><button id="btn-generate-paths-inline" title="選択図の開始から終了までの経路を作成">全経路を作成</button></div>
+        <div id="path-generation-status" class="hidden" role="status"></div>
         <details id="condition-advanced"><summary>条件JSONを編集</summary>
           <textarea id="conditions">{"role": "admin", "error_count": 0}</textarea>
         </details>

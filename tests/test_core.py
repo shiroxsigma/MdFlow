@@ -106,6 +106,7 @@ def test_enumerate_paths_stops_cycles_and_honours_limit():
     limited = mermaid.enumerate_flow_paths("flowchart TD\n A-->B\n A-->C\n B-->D\n C-->D", limit=1)
     assert limited.paths == [["A", "B", "D"]]
     assert limited.truncated is True
+    assert mermaid.enumerate_flow_paths("flowchart TD\n A[Only node]").paths == []
 
 
 # --------------------------------------------------------------------------- #
