@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+
+# 同梱物（セットアップ時に取得）
+mdflow/resources/vendor/
+
+# 生成物
+*.pptx
+!samples/**/*.pptx
