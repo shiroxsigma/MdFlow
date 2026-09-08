@@ -1,7 +1,7 @@
 # Core
 python-pptx>=1.0
 PyYAML>=6.0
-Markdown>=3.5
+Markdown>=3.10.3
 
 # GUI / local web application
 nicegui>=3.0
