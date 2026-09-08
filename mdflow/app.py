@@ -48,6 +48,11 @@ def render_plantuml(payload: dict) -> dict:
         return {"error": str(exc), "line": exc.line}
 
 
+@app.get("/api/plantuml/diagnostics")
+def plantuml_diagnostics() -> dict:
+    return plantuml.diagnostics()
+
+
 @app.get("/api/llm/status")
 def llm_status() -> dict:
     cfg = local_llm.config()

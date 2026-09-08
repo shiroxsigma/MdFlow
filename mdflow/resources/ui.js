@@ -177,6 +177,23 @@ function initRenderers() {
     $("status-engine").innerHTML =
       '<span class="badge danger">mermaid未配置: scripts/fetch_mermaid.py</span>';
   }
+  api("/api/plantuml/diagnostics").then((info) => {
+    const suffix = info.available ? `PlantUML ${info.version || "✓"}${info.graphviz ? " / Graphviz ✓" : ""}` : "PlantUML 未設定";
+    $("status-engine").textContent += ` / ${suffix}`;
+    $("status-engine").title = info.available ? `cache: ${info.cache} / concurrency: ${info.concurrency}` : (info.error || "");
+  });
+}
+
+const DIAGRAM_TEMPLATES = {
+  sequence: "```plantuml\n@startuml sequence-name\nactor User\nparticipant App\nUser -> App: Request\nApp --> User: Response\n@enduml\n```\n",
+  class: "```plantuml\n@startuml class-name\nclass Example {\n  +method()\n}\n@enduml\n```\n",
+  c4: "```plantuml\n@startuml architecture\n!include <C4/C4_Container>\nPerson(user, \"User\")\nContainer(app, \"Application\", \"Technology\")\nRel(user, app, \"Uses\")\n@enduml\n```\n",
+  mermaid: "```mermaid\n%% id: flow-name\nflowchart TD\n  A[Start] --> B[End]\n```\n",
+};
+function insertDiagramTemplate() {
+  const text = DIAGRAM_TEMPLATES[$("diagram-template").value]; if (!text || !editor) return;
+  const selection = editor.getSelection(); editor.executeEdits("template", [{ range: selection, text, forceMoveMarkers: true }]);
+  editor.focus(); $("diagram-template").value = "";
 }
 
 // ---- 再描画（デバウンス）----
@@ -761,6 +778,7 @@ function wire() {
   $("btn-export").onclick = onExport;
   $("btn-import").onclick = onImport;
   $("btn-add-cond").onclick = openCondModal;
+  $("btn-insert-template").onclick = insertDiagramTemplate;
   $("btn-llm").onclick = openLlm;
   $("btn-zoom-in").onclick = () => changeZoom(.1);
   $("btn-zoom-out").onclick = () => changeZoom(-.1);

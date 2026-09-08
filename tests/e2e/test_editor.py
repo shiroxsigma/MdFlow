@@ -30,6 +30,13 @@ def test_dirty_state_and_crash_recovery(app_page):
     expect(app_page.locator("#preview")).to_contain_text("Unsaved recovery")
 
 
+def test_diagram_template_insertion(app_page):
+    app_page.evaluate("editor.setValue('')")
+    app_page.locator("#diagram-template").select_option("sequence")
+    app_page.locator("#btn-insert-template").click()
+    assert "@startuml sequence-name" in app_page.evaluate("editor.getValue()")
+
+
 def test_mermaid_zoom_and_svg_copy(app_page, context):
     context.grant_permissions(["clipboard-read", "clipboard-write"], origin=app_page.url)
     app_page.evaluate("editor.setValue('```mermaid\\nflowchart TD\\n A-->B\\n```')")

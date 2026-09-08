@@ -104,6 +104,11 @@ Bob --> Alice: Hi
 ```
 
 PlantUML の描画はローカルプロセスで行われ、ソースが外部サービスへ送信されることはありません。
+取得スクリプトは固定した公式JARのSHA-256を検証してから配置します。画面下部にはPlantUML、Java、
+Graphvizの診断結果とバージョンを表示します。描画は既定で同時2件までに制限され、結果は
+`%LOCALAPPDATA%/MdFlow/cache/plantuml`へ永続キャッシュされます。同時数とキャッシュ先は
+`MDFLOW_PLANTUML_CONCURRENCY`、`MDFLOW_PLANTUML_CACHE`で変更できます。エディタ上部からsequence、
+class、C4、Mermaid flowchartのテンプレートも挿入できます。
 
 ## MonacoエディタとローカルLLM
 
