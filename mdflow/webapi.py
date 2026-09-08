@@ -49,11 +49,11 @@ def generate_all_paths(md: str, diagram_id: str, limit: int = 100) -> dict[str, 
         return {"error": "図に『%% id: 名前』を付けてから全経路を生成してください"}
     result = mermaid.enumerate_flow_paths(block.code, limit=max(1, min(limit, 500)))
     if not result.paths:
-        return {"error": "flowchartの接続経路を検出できませんでした"}
+        return {"error": "flowchart／stateDiagramの開始から終了までの経路を検出できませんでした"}
     updated = mapping.replace_generated_paths(md, block.diagram_id, result.paths)
     warnings = []
     if result.has_cycle:
-        warnings.append("循環を検出したため、同じノードを二度通らない経路として生成しました")
+        warnings.append("循環を検出したため、同じ遷移を二度通らない有限経路として生成しました")
     if result.truncated:
         warnings.append(f"経路数が上限{limit}件を超えたため打ち切りました")
     return {"md": updated, "count": len(result.paths), "paths": result.paths,

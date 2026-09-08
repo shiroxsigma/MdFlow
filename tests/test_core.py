@@ -101,12 +101,31 @@ def test_enumerate_all_flowchart_paths_with_shapes_and_labels():
 
 def test_enumerate_paths_stops_cycles_and_honours_limit():
     cycle = mermaid.enumerate_flow_paths("flowchart LR\n A-->B\n B-->A")
-    assert cycle.paths == [["A", "B"]]
+    assert cycle.paths == []
     assert cycle.has_cycle is True
     limited = mermaid.enumerate_flow_paths("flowchart TD\n A-->B\n A-->C\n B-->D\n C-->D", limit=1)
     assert limited.paths == [["A", "B", "D"]]
     assert limited.truncated is True
     assert mermaid.enumerate_flow_paths("flowchart TD\n A[Only node]").paths == []
+
+
+def test_enumerate_state_diagram_paths_with_japanese_ids():
+    code = """stateDiagram-v2
+ [*] --> 初期状態
+ 初期状態 --> 機能有効状態: 有効
+ 初期状態 --> 出力無効状態: 無効
+ 機能有効状態 --> [*]
+ 出力無効状態 --> [*]
+"""
+    result = mermaid.enumerate_flow_paths(code)
+    assert result.paths == [
+        ["初期状態", "機能有効状態"],
+        ["初期状態", "出力無効状態"],
+    ]
+    assert mermaid.node_ids_ordered(code) == ["初期状態", "機能有効状態", "出力無効状態"]
+    injected = mermaid.inject_style(code, ["初期状態", "機能有効状態"], "fill:#f99")
+    assert 'state "初期状態" as mdflowState0' in injected.code
+    assert "class mdflowState0,mdflowState1 mdflowActive" in injected.code
 
 
 # --------------------------------------------------------------------------- #

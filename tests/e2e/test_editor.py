@@ -105,6 +105,28 @@ flowchart TD
     assert "自動経路 01" not in app_page.evaluate("editor.getValue()")
 
 
+def test_generate_state_diagram_paths_with_japanese_states(app_page):
+    source = """```mermaid
+%% id: state-flow
+stateDiagram-v2
+  [*] --> 初期状態
+  初期状態 --> 機能有効状態: 有効
+  初期状態 --> 出力無効状態: 無効
+  機能有効状態 --> 地図出力中
+  地図出力中 --> 契約国外状態
+  契約国外状態 --> 地図出力中
+  地図出力中 --> [*]
+  出力無効状態 --> [*]
+```"""
+    app_page.evaluate("value => editor.setValue(value)", source)
+    app_page.locator("#sel-diagram option[value='state-flow']").wait_for(state="attached", timeout=10_000)
+    app_page.locator("#btn-generate-paths-inline").click()
+    expect(app_page.locator("#path-generation-status")).to_contain_text("3件の経路を作成")
+    app_page.locator("#preset-buttons .preset-chip", has_text="自動経路 01").click()
+    expect(app_page.locator("#preview .mermaid-box svg")).to_be_visible(timeout=10_000)
+    expect(app_page.locator("#status-warn")).not_to_contain_text("構文エラー")
+
+
 def test_command_palette(app_page):
     app_page.keyboard.press("Control+Shift+p")
     expect(app_page.locator("#command-palette")).to_be_visible()

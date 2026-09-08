@@ -24,6 +24,10 @@ _ARROW_RE = re.compile(
     r"(?:\|[^|]*\|\s*)?([A-Za-z_][\w-]*)"
 )
 _FLOWCHART_HEAD_RE = re.compile(r"^\s*(graph|flowchart)\b", re.IGNORECASE)
+_STATE_HEAD_RE = re.compile(r"^\s*stateDiagram(?:-v2)?\b", re.IGNORECASE)
+_STATE_EDGE_RE = re.compile(r"^\s*(\[\*\]|[^\s:]+)\s*-->\s*(\[\*\]|[^\s:]+)")
+_STATE_START = "__mdflow_state_start__"
+_STATE_END = "__mdflow_state_end__"
 _NODE_SHAPE_RE = re.compile(
     r"\b([A-Za-z_][\w-]*)\s*(?:\[\[[^]]*\]\]|\[\([^)]*\)\]|\[[^]]*\]|\([^)]*\)|\{[^}]*\})"
 )
@@ -81,6 +85,15 @@ def is_flowchart(code: str) -> bool:
     return False
 
 
+def is_state_diagram(code: str) -> bool:
+    for line in code.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("%%"):
+            continue
+        return bool(_STATE_HEAD_RE.match(stripped))
+    return False
+
+
 def parse_node_ids(code: str) -> set[str]:
     """flowchart コードから宣言されているノードIDの集合を返す（ヒューリスティック）."""
     return set(node_ids_ordered(code))
@@ -101,6 +114,11 @@ def node_ids_ordered(code: str) -> list[str]:
             gid = m.group(1)
             if gid not in _RESERVED:
                 seen.setdefault(gid, None)
+    if is_state_diagram(code):
+        for source, target in state_edges(code):
+            for node in (source, target):
+                if node not in {_STATE_START, _STATE_END}:
+                    seen.setdefault(node, None)
     return list(seen.keys())
 
 
@@ -136,19 +154,60 @@ def flow_edges(code: str) -> list[tuple[str, str]]:
     return edges
 
 
+def state_edges(code: str) -> list[tuple[str, str]]:
+    """stateDiagram(-v2)の遷移を抽出し、開始・終了の[*]を区別する."""
+    edges: list[tuple[str, str]] = []
+    for raw in code.splitlines():
+        line = raw.split("%%", 1)[0].strip()
+        match = _STATE_EDGE_RE.match(line)
+        if not match:
+            continue
+        source, target = match.groups()
+        source = _STATE_START if source == "[*]" else source
+        target = _STATE_END if target == "[*]" else target
+        edges.append((source, target))
+    return edges
+
+
+def _alias_state_ids_for_render(code: str) -> tuple[str, dict[str, str]]:
+    """Mermaidのclass文で扱えないUnicode状態IDを描画時だけASCII aliasへ変換する."""
+    unsafe = [node for node in node_ids_ordered(code)
+              if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_-]*", node)]
+    aliases = {node: f"mdflowState{index}" for index, node in enumerate(unsafe)}
+    if not aliases:
+        return code, aliases
+    output: list[str] = []
+    declarations_added = False
+    for line in code.splitlines():
+        match = _STATE_EDGE_RE.match(line)
+        if match:
+            source, target = match.groups()
+            line = (line[:match.start(1)] + aliases.get(source, source)
+                    + line[match.end(1):match.start(2)] + aliases.get(target, target)
+                    + line[match.end(2):])
+        output.append(line)
+        if not declarations_added and _STATE_HEAD_RE.match(line.strip()):
+            for name, alias in aliases.items():
+                escaped = name.replace('"', "&quot;")
+                output.append(f'  state "{escaped}" as {alias}')
+            declarations_added = True
+    return "\n".join(output), aliases
+
+
 def enumerate_flow_paths(code: str, *, limit: int = 100) -> FlowPaths:
-    """開始から終了までの全単純経路を列挙する（最大 ``limit`` 件）."""
-    if not is_flowchart(code):
+    """flowchart/stateDiagramの開始から終了までの有限経路を列挙する."""
+    state_diagram = is_state_diagram(code)
+    if not is_flowchart(code) and not state_diagram:
         return FlowPaths()
-    edges = flow_edges(code)
+    edges = state_edges(code) if state_diagram else flow_edges(code)
     if not edges:
         return FlowPaths()
     connected = {node for edge in edges for node in edge}
-    nodes = [node for node in node_ids_ordered(code) if node in connected]
-    outgoing: dict[str, list[str]] = {node: [] for node in nodes}
+    nodes = list(dict.fromkeys(node for edge in edges for node in edge if node in connected))
+    outgoing: dict[str, list[tuple[str, int]]] = {node: [] for node in nodes}
     incoming: dict[str, int] = {node: 0 for node in nodes}
-    for source, target in edges:
-        outgoing.setdefault(source, []).append(target)
+    for edge_index, (source, target) in enumerate(edges):
+        outgoing.setdefault(source, []).append((target, edge_index))
         outgoing.setdefault(target, [])
         incoming.setdefault(source, 0)
         incoming[target] = incoming.get(target, 0) + 1
@@ -159,22 +218,25 @@ def enumerate_flow_paths(code: str, *, limit: int = 100) -> FlowPaths:
         roots = [next(iter(outgoing))]
         result.has_cycle = True
 
-    def visit(node: str, path: list[str]) -> None:
+    def visit(node: str, path: list[str], used_edges: frozenset[int]) -> None:
         if len(result.paths) >= limit:
             result.truncated = True
             return
         next_nodes = outgoing.get(node, [])
-        unvisited = [target for target in next_nodes if target not in path]
-        if len(unvisited) != len(next_nodes):
-            result.has_cycle = True
-        if not unvisited:
-            result.paths.append(path)
+        if not next_nodes:
+            cleaned = [item for item in path if item not in {_STATE_START, _STATE_END}]
+            if cleaned and cleaned not in result.paths:
+                result.paths.append(cleaned)
             return
-        for target in unvisited:
-            visit(target, [*path, target])
+        for target, edge_index in next_nodes:
+            if target in path:
+                result.has_cycle = True
+            if edge_index in used_edges:
+                continue
+            visit(target, [*path, target], used_edges | {edge_index})
 
     for root in roots:
-        visit(root, [root])
+        visit(root, [root], frozenset())
         if result.truncated:
             break
     return result
@@ -205,11 +267,15 @@ def inject_style(
 
     missing: list[str] = []
     targets = list(dict.fromkeys(active_nodes))  # 重複除去・順序維持
-    if validate and is_flowchart(code):
+    if validate and (is_flowchart(code) or is_state_diagram(code)):
         present = parse_node_ids(code)
         applied = [n for n in targets if n in present]
         missing = [n for n in targets if n not in present]
         targets = applied
+
+    if is_state_diagram(code):
+        base, aliases = _alias_state_ids_for_render(base)
+        targets = [aliases.get(node, node) for node in targets]
 
     if not targets:
         return InjectionResult(code=base, missing=missing)
