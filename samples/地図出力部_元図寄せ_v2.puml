@@ -1,0 +1,173 @@
+@startuml
+allowmixing
+title 地図出力部
+
+' =========================================================
+' 元図寄せ版
+' ・structured activity の endif 結合点を使わない
+' ・各処理／判定を明示ノード＋明示矢印で配置
+' ・左下は「地図読めた？」→ 何もしない／生成 → 登録 → END
+' ・END から周期処理へ戻る外周ループを明示
+' =========================================================
+
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam defaultFontName "Yu Gothic"
+skinparam defaultFontSize 11
+skinparam linetype ortho
+skinparam nodesep 55
+skinparam ranksep 22
+skinparam ArrowColor #202020
+skinparam ArrowThickness 1
+
+<style>
+rectangle {
+  BackgroundColor #EEF5FF
+  LineColor #24445E
+  FontColor #111111
+  RoundCorner 5
+}
+diamond {
+  BackgroundColor #F4CCCC
+  LineColor #24445E
+  FontColor #111111
+}
+database {
+  BackgroundColor #F4CCCC
+  LineColor #24445E
+  FontColor #111111
+}
+</style>
+
+' ---------------------------------------------------------
+' ヘッダ
+' ---------------------------------------------------------
+rectangle "地図出力部\nMOUT" as H_MOUT #F4CCCC
+rectangle "ロガー"       as H_LOG  #F4CCCC
+rectangle "地図管理"     as H_MAP  #F4CCCC
+database  "ASD_OUTPUT"   as H_ASD  #F4CCCC
+
+H_MOUT -[hidden]right-> H_LOG
+H_LOG  -[hidden]right-> H_MAP
+H_MAP  -[hidden]right-> H_ASD
+
+' ---------------------------------------------------------
+' MOUT 主フロー
+' ---------------------------------------------------------
+rectangle "START" as START
+rectangle "周期処理" as PERIOD
+
+diamond "機能有効？\n（動作対象がTomTom以外？）" as D_ENABLE
+rectangle "マッチング状態取得" as MATCH_STATE
+
+diamond "マップマッチングして\nいる？" as D_MATCH
+rectangle "マッチング道路（メッシュ）の\n地図データを要求" as REQ_MATCH_MAP
+rectangle "マッチング道路の\n国コードを取得" as GET_COUNTRY
+
+diamond "TomTom契約国か？\n国コード" as D_TOMTOM
+rectangle "周辺地図要求" as REQ_AROUND
+
+diamond "地図読めた？" as D_READ
+rectangle "何もしない" as NOOP
+rectangle "周辺道路情報生成\n（メッシュ単位）" as GEN_ROAD
+rectangle "ASD_OUTPUT登録" as REG_OUT
+rectangle "END" as END_NODE
+
+H_MOUT -[hidden]down-> START
+
+START -down-> PERIOD
+PERIOD -down-> D_ENABLE
+
+D_ENABLE -down-> MATCH_STATE : Yes
+MATCH_STATE -down-> D_MATCH
+
+D_MATCH -down-> REQ_MATCH_MAP : Yes
+REQ_MATCH_MAP -down-> GET_COUNTRY
+GET_COUNTRY -down-> D_TOMTOM
+
+D_TOMTOM -down-> REQ_AROUND : Yes
+REQ_AROUND -down-> D_READ
+
+D_READ -down-> GEN_ROAD : Yes
+D_READ -right-> NOOP : No
+
+GEN_ROAD -down-> REG_OUT
+REG_OUT -down-> END_NODE
+
+' ---------------------------------------------------------
+' ASD_OUTPUT
+' 元図と同じく、No分岐／登録から右へ水平出力
+' 主フローには合流させない
+' ---------------------------------------------------------
+rectangle "ASD_OUTPUT\n無効値" as OUT_DISABLE_1
+rectangle "ASD_OUTPUT\n無効値" as OUT_DISABLE_2
+rectangle "ASD_OUTPUT\n無効値" as OUT_DISABLE_3
+rectangle "ASD_OUTPUT\n有効値" as OUT_ENABLE
+
+H_ASD -[hidden]down-> OUT_DISABLE_1
+OUT_DISABLE_1 -[hidden]down-> OUT_DISABLE_2
+OUT_DISABLE_2 -[hidden]down-> OUT_DISABLE_3
+OUT_DISABLE_3 -[hidden]down-> OUT_ENABLE
+
+D_ENABLE -right-> OUT_DISABLE_1 : No
+D_MATCH  -right-> OUT_DISABLE_2 : No
+D_TOMTOM -right-> OUT_DISABLE_3 : No
+REG_OUT  -right-> OUT_ENABLE
+
+' ---------------------------------------------------------
+' ロガー：縦線＋要求／応答
+' 空ノードはアンカー用（透明）
+' ---------------------------------------------------------
+rectangle " " as LOG_A0 #transparent
+rectangle " " as LOG_A1 #transparent
+rectangle " " as LOG_A2 #transparent
+rectangle " " as LOG_A3 #transparent
+
+H_LOG -[#E87521]- LOG_A0
+LOG_A0 -[#E87521]- LOG_A1
+LOG_A1 -[#E87521]- LOG_A2
+LOG_A2 -[#E87521]- LOG_A3
+
+MATCH_STATE -right-> LOG_A1
+LOG_A2 -left-> MATCH_STATE
+
+' ---------------------------------------------------------
+' 地図管理：縦線＋2組の要求／応答
+' ---------------------------------------------------------
+rectangle " " as MAP_A0 #transparent
+rectangle " " as MAP_A1 #transparent
+rectangle " " as MAP_A2 #transparent
+rectangle " " as MAP_A3 #transparent
+rectangle " " as MAP_A4 #transparent
+rectangle " " as MAP_A5 #transparent
+
+H_MAP -[#E87521]- MAP_A0
+MAP_A0 -[#E87521]- MAP_A1
+MAP_A1 -[#E87521]- MAP_A2
+MAP_A2 -[#E87521]- MAP_A3
+MAP_A3 -[#E87521]- MAP_A4
+MAP_A4 -[#E87521]- MAP_A5
+
+REQ_MATCH_MAP -right-> MAP_A1
+MAP_A2 -left-> REQ_MATCH_MAP
+
+REQ_AROUND -right-> MAP_A4
+MAP_A5 -left-> REQ_AROUND
+
+' ---------------------------------------------------------
+' ASD_OUTPUT 縦ライン
+' ---------------------------------------------------------
+H_ASD -[#E87521]- OUT_DISABLE_1
+OUT_DISABLE_1 -[#E87521]- OUT_DISABLE_2
+OUT_DISABLE_2 -[#E87521]- OUT_DISABLE_3
+OUT_DISABLE_3 -[#E87521]- OUT_ENABLE
+
+' ---------------------------------------------------------
+' 元図の左外周ループ
+' END → 左へ → 周期処理へ戻る
+' ---------------------------------------------------------
+rectangle " " as LOOP_CORNER #transparent
+END_NODE -left-> LOOP_CORNER
+LOOP_CORNER -up-> PERIOD
+
+@enduml
