@@ -237,8 +237,9 @@ async function renderPlantUmlBlocks() {
 let renderTimer = null;
 function scheduleRender() { clearTimeout(renderTimer); renderTimer = setTimeout(render, 300); }
 
-async function refreshSelectors() {
+async function refreshSelectors(expectedRenderId) {
   const info = JSON.parse((await bcall("parseDoc", editorText())) || "{}");
+  if (expectedRenderId !== state.renderId) return false;
   state.diagrams = info.diagrams || [];
   const selDia = $("sel-diagram");
   const prev = selDia.value;
@@ -250,6 +251,7 @@ async function refreshSelectors() {
   if (state.diagrams.some((d) => d.id === prev)) selDia.value = prev;
   state.selectedId = selDia.value;
   buildPresetOptions(info);
+  return true;
 }
 
 function buildPresetOptions(info) {
@@ -292,11 +294,12 @@ function updateQuickPresetState(resolved = "") {
 
 async function render() {
   const renderId = ++state.renderId;
-  await refreshSelectors();
+  if (!await refreshSelectors(renderId)) return;
   const conditions = $("conditions").value || "{}";
   const preset = $("sel-preset").value;
-  const res = JSON.parse(
-    (await bcall("renderDiagram", editorText(), state.selectedId, conditions, preset)) || "{}");
+  const res = state.selectedId ? JSON.parse(
+    (await bcall("renderDiagram", editorText(), state.selectedId, conditions, preset)) || "{}")
+    : { injected: "", preset: "", warnings: [] };
   if (renderId !== state.renderId) return;
 
   // ステータス
