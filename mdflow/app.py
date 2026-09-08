@@ -9,7 +9,7 @@ from pathlib import Path
 
 from fastapi import UploadFile
 from starlette.background import BackgroundTask
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from nicegui import app, ui
 
 from . import local_llm, plantuml, pptx_io, webapi
@@ -130,21 +130,16 @@ async def import_ppt(file: UploadFile) -> dict:
         shutil.rmtree(work, ignore_errors=True)
 
 
-@ui.page("/")
-def index() -> None:
-    html = (_RES / "ui.html").read_text("utf-8")
-    body = html.split("<body>", 1)[1].split("</body>", 1)[0].split("<script", 1)[0]
-    ui.add_head_html('<link rel="stylesheet" href="/assets/ui.css">')
-    ui.add_body_html(body)
-    ui.add_body_html('<script src="/assets/vendor/markdown-it/markdown-it.min.js"></script>'
-                     '<script src="/assets/vendor/mermaid/mermaid.min.js"></script>'
-                     '<script src="/assets/vendor/monaco/vs/loader.js"></script>'
-                     '<script src="/assets/ui.js"></script>')
+@app.get("/", response_class=HTMLResponse)
+def index() -> str:
+    """Serve the standalone editor without a framework overlay."""
+    return (_RES / "ui.html").read_text("utf-8")
 
 
 def main() -> int:
     show_browser = os.environ.get("MDFLOW_SHOW_BROWSER", "1") != "0"
-    ui.run(title="MdFlow", host="127.0.0.1", port=8080, reload=False, show=show_browser)
+    port = int(os.environ.get("MDFLOW_PORT", "8080"))
+    ui.run(title="MdFlow", host="127.0.0.1", port=port, reload=False, show=show_browser)
     return 0
 
 

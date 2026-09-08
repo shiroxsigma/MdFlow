@@ -163,4 +163,14 @@ tests/           コア・PPT往復・プレビュー・webapi のテスト（27
 python -m pytest tests/ -q
 ```
 
+ブラウザE2EテストはPlaywright Chromiumを使用します。初回のみブラウザを取得してください。
+
+```bash
+python -m playwright install chromium
+python -m pytest tests/e2e -q --browser chromium
+```
+
+E2Eテストでは一時ポートでMdFlowを起動し、Monacoの検索・保存、アウトライン、Mermaidのズーム・
+SVGコピー、ローカルLLMのDiff表示・停止を実ブラウザで検証します。
+
 `md → ppt → md` のラウンドトリップ、ノート系フォールバック、hash改変検知を含む。

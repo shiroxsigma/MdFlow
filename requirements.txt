@@ -8,3 +8,4 @@ nicegui>=3.0
 
 # Development
 pytest>=8.0
+pytest-playwright>=0.7

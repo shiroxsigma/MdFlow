@@ -1,4 +1,5 @@
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from fastapi import UploadFile
@@ -14,7 +15,7 @@ def test_import_cleans_temporary_directory(monkeypatch, tmp_path):
     upload = UploadFile(filename="../unsafe.pptx", file=None)
     upload.read = lambda: _async_bytes(b"pptx")
 
-    assert asyncio.run(app_module.import_ppt(upload)) == {"ok": True}
+    assert _run(app_module.import_ppt(upload)) == {"ok": True}
     assert not work.exists()
 
 
@@ -31,10 +32,16 @@ def test_export_attaches_cleanup_task(monkeypatch, tmp_path):
 
     response = app_module.export_ppt({"png_dataurl": "base64,aA==", "diagram_id": "safe"})
     assert response.background is not None
-    asyncio.run(response.background())
+    _run(response.background())
     assert not work.exists()
 
 
 def _mkdir(path):
     path.mkdir()
     return str(path)
+
+
+def _run(awaitable):
+    # pytest-playwright keeps an event loop in the main test thread.
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(asyncio.run, awaitable).result()
