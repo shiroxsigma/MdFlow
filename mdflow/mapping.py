@@ -89,6 +89,59 @@ def find_mapping(mappings: list[Mapping], diagram_id: str) -> Optional[Mapping]:
     return None
 
 
+def _preset_spec(when: str, active_nodes: list[str],
+                 active_edges: Optional[list] = None) -> dict[str, Any]:
+    spec: dict[str, Any] = {}
+    if when:
+        spec["when"] = when
+    spec["active_nodes"] = list(active_nodes)
+    if active_edges:
+        spec["active_edges"] = list(active_edges)
+    return spec
+
+
+def _dump_block(data: dict[str, Any]) -> str:
+    body = yaml.safe_dump(data, allow_unicode=True, sort_keys=False).rstrip("\n")
+    return "```mdflow-mapping\n" + body + "\n```"
+
+
+def upsert_preset(
+    md_text: str,
+    diagram_id: str,
+    name: str,
+    when: str,
+    active_nodes: list[str],
+    active_edges: Optional[list] = None,
+    style: Optional[str] = None,
+) -> str:
+    """mdflow-mapping ブロックにプリセットを追加/更新した Markdown 全文を返す.
+
+    - 対象 diagram のブロックがあれば、その YAML を読み直して presets を更新し再直列化。
+    - 無ければ新しいブロックを末尾に追記する。
+    既存設計どおり「テキストとして残す（grep可能・バージョン管理容易）」を維持する。
+    """
+    if not name:
+        raise ValueError("プリセット名は必須です")
+
+    for m in _BLOCK_RE.finditer(md_text):
+        data = yaml.safe_load(m.group(1)) or {}
+        if str(data.get("diagram", "")) != diagram_id:
+            continue
+        presets = data.get("presets") or {}
+        presets[name] = _preset_spec(when, active_nodes, active_edges)
+        data["presets"] = presets
+        if style:
+            data.setdefault("style", {})["active"] = style
+        return md_text[: m.start()] + _dump_block(data) + md_text[m.end():]
+
+    # 見つからなければ新規ブロックを末尾へ
+    data = {"diagram": diagram_id, "presets": {name: _preset_spec(when, active_nodes, active_edges)}}
+    if style:
+        data["style"] = {"active": style}
+    sep = "" if md_text.endswith("\n") else "\n"
+    return f"{md_text}{sep}\n{_dump_block(data)}\n"
+
+
 # --------------------------------------------------------------------------- #
 # ルール式評価（安全な ast 手評価）
 # --------------------------------------------------------------------------- #

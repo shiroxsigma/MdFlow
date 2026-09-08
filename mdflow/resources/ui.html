@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <title>MdFlow</title>
-  <link rel="stylesheet" href="ui.css">
+  <link rel="stylesheet" href="/assets/ui.css">
 </head>
 <body>
   <div id="topbar">
@@ -16,6 +16,8 @@
     <label class="ctl">プリセット</label>
     <select id="sel-preset"></select>
 
+    <button id="btn-add-cond">＋条件を登録</button>
+    <button id="btn-llm">✦ Local LLM</button>
     <button id="btn-open">開く</button>
     <button id="btn-save" class="primary">保存</button>
     <button id="btn-export" class="accent">PPTへ出力</button>
@@ -24,9 +26,12 @@
 
   <div id="main">
     <div id="left">
-      <div class="pane-head">エディタ (Markdown)</div>
-      <div id="editor-host">
-        <textarea id="editor-fallback" spellcheck="false"></textarea>
+      <div class="pane-head">エディタ (Markdown)<span class="spacer"></span><span id="cursor-position">Ln 1, Col 1</span></div>
+      <div id="editor-area">
+        <aside id="outline"><div class="outline-title">OUTLINE</div><div id="outline-items"></div></aside>
+        <div id="editor-host">
+          <textarea id="editor-fallback" spellcheck="false"></textarea>
+        </div>
       </div>
       <div id="cond-strip">
         <label class="ctl">条件 (JSON)</label>
@@ -35,7 +40,10 @@
     </div>
     <div id="divider"></div>
     <div id="right">
-      <div class="pane-head">プレビュー</div>
+      <div class="pane-head">プレビュー<span class="spacer"></span>
+        <button id="btn-zoom-out" title="縮小">−</button><span id="zoom-label">100%</span><button id="btn-zoom-in" title="拡大">＋</button>
+        <button id="btn-copy-svg">SVGコピー</button><button id="btn-copy-png">PNGコピー</button><button id="btn-save-diagram">図を保存</button>
+      </div>
       <div id="preview" class="md"></div>
     </div>
   </div>
@@ -48,9 +56,49 @@
   </div>
   <div id="toast"></div>
 
-  <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
-  <script src="vendor/markdown-it/markdown-it.min.js"></script>
-  <script src="vendor/mermaid/mermaid.min.js"></script>
-  <script src="ui.js"></script>
+  <div id="llm-backdrop" class="hidden">
+    <section id="llm-panel">
+      <div class="modal-title">✦ Local LLM <span id="llm-status" class="badge">確認中...</span></div>
+      <details id="llm-settings"><summary>接続設定</summary><div class="settings-grid">
+        <label class="ctl">方式</label><select id="llm-provider"><option value="openai">LM Studio / OpenAI互換</option><option value="ollama">Ollama</option></select>
+        <label class="ctl">URL</label><input id="llm-url" value="http://127.0.0.1:1234/v1">
+        <label class="ctl">タイムアウト</label><input id="llm-timeout" type="number" min="10" max="600" value="120">
+        <button id="llm-connect">接続して保存</button>
+      </div></details>
+      <div class="llm-row"><label class="ctl">用途</label><select id="llm-purpose"><option value="quick">文章修正・補完</option><option value="diagram">図の生成・修正</option><option value="review">設計レビュー</option></select>
+      <label class="ctl">モデル</label><select id="llm-model"></select>
+      <label class="ctl">範囲</label><select id="llm-scope"><option value="selection">選択範囲</option><option value="section">現在の見出し</option><option value="document">文書全体</option></select></div>
+      <label class="ctl">依頼・質問</label>
+      <textarea id="llm-instruction" placeholder="例: このシーケンス図を簡潔にして / この分岐が必要な理由は？"></textarea>
+      <div class="llm-scope"><span id="llm-scope-label">文書全体を使用</span> · <span id="llm-token-estimate">約0 tokens</span></div>
+      <div class="modal-actions"><button id="llm-close">閉じる</button><button id="llm-stop" class="danger hidden">生成停止</button><button id="llm-ask">理由を聞く</button><button id="llm-edit" class="accent">編集案を作る</button></div>
+      <div id="llm-result" class="hidden"><div class="outline-title">回答 / 編集案 <span id="llm-validation"></span></div><pre id="llm-answer"></pre><div id="llm-diff" class="hidden"></div>
+        <div id="llm-apply-actions" class="modal-actions hidden"><button id="llm-apply" class="primary">編集案を適用</button></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- 条件登録モーダル -->
+  <div id="modal-backdrop" class="hidden">
+    <div id="cond-modal">
+      <div class="modal-title">条件を登録 <span id="cond-modal-dia" class="muted"></span></div>
+      <label class="ctl">プリセット名</label>
+      <input id="cond-name" type="text" placeholder="例: 認証エラー">
+      <label class="ctl">条件式 <span class="muted">（例: error_count &gt; 0 &amp;&amp; role == "admin"）</span></label>
+      <input id="cond-when" type="text" placeholder='空欄なら常に一致'>
+      <label class="ctl">通るノード</label>
+      <div id="cond-nodes" class="node-grid"></div>
+      <div id="cond-error" class="badge danger" style="display:none"></div>
+      <div class="modal-actions">
+        <button id="cond-cancel">キャンセル</button>
+        <button id="cond-submit" class="accent">登録</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/assets/vendor/markdown-it/markdown-it.min.js"></script>
+  <script src="/assets/vendor/mermaid/mermaid.min.js"></script>
+  <script src="/assets/vendor/monaco/vs/loader.js"></script>
+  <script src="/assets/ui.js"></script>
 </body>
 </html>

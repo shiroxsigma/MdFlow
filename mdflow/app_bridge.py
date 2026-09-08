@@ -39,6 +39,16 @@ class Bridge(QtCore.QObject):
         return json.dumps(
             webapi.render_diagram(md, diagram_id, conditions, preset), ensure_ascii=False)
 
+    # ---- 条件（プリセット）登録 ----
+    @pyqtSlot(str, str, str, str, str, result=str)
+    def addPreset(self, md: str, diagram_id: str, name: str, when: str, nodes_json: str) -> str:
+        try:
+            nodes = json.loads(nodes_json or "[]")
+        except json.JSONDecodeError:
+            nodes = []
+        return json.dumps(
+            webapi.add_preset(md, diagram_id, name, when, nodes), ensure_ascii=False)
+
     # ---- ファイル ----
     @pyqtSlot(result=str)
     def openFile(self) -> str:

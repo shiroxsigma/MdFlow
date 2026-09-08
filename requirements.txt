@@ -1,13 +1,10 @@
-# コア（GUIなしでも動作: CLI・テスト・PPT往復）
+# Core
 python-pptx>=1.0
 PyYAML>=6.0
-Markdown>=3.5        # プレビュー整形（任意・無くても図は描画可）
+Markdown>=3.5
 
-# GUI（どちらか一方を導入）
-PyQt6>=6.6
-PyQt6-WebEngine>=6.6
-# PyQt5>=5.15
-# PyQtWebEngine>=5.15
+# GUI / local web application
+nicegui>=3.0
 
-# 開発
+# Development
 pytest>=8.0

@@ -24,7 +24,26 @@ Word/Excel/PPT に散らばる仕様書を **Markdown に統一**し、埋め込
 pip install -r requirements.txt
 python scripts/fetch_mermaid.py        # 初回のみ（以降オフライン）
 python scripts/fetch_markdown_it.py    # 初回のみ（以降オフライン）
+python scripts/fetch_monaco.py         # 初回のみ（以降オフライン）
 ```
+
+PlantUML も使用する場合は Java ランタイムをインストールして、JAR を取得します。
+
+```bash
+python scripts/fetch_plantuml.py       # 初回のみ（以降オフライン）
+```
+
+Windows では、Java のインストールも含めて PowerShell からセットアップできます。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/setup_plantuml_windows.ps1
+```
+
+このスクリプトは winget で Eclipse Temurin 21 JRE を導入した後、固定バージョンの
+PlantUML JAR を `mdflow/resources/vendor/plantuml/` に取得します。
+
+`plantuml` コマンドが PATH にある場合はそちらを優先します。任意の実行ファイルや
+JAR を使う場合は、それぞれ `MDFLOW_PLANTUML`、`MDFLOW_PLANTUML_JAR` で指定できます。
 
 GUI は PyQt6（`PyQt6 + PyQt6-WebEngine`）または PyQt5（`PyQt5 + PyQtWebEngine`）のどちらでも動く。
 ベンダーJS（mermaid / markdown-it）は `mdflow/resources/vendor/` に配置され、実行中は外部通信しない。
@@ -71,6 +90,48 @@ presets:
 style:
   active: 'fill:#ff9999,stroke:#333,stroke-width:2px'
 ​```
+```
+
+PlantUML は `plantuml`（または `puml`）フェンスで記述するとプレビューされます。
+
+```markdown
+​```plantuml
+@startuml
+Alice -> Bob: Hello
+Bob --> Alice: Hi
+@enduml
+​```
+```
+
+PlantUML の描画はローカルプロセスで行われ、ソースが外部サービスへ送信されることはありません。
+
+## MonacoエディタとローカルLLM
+
+編集画面はMonaco Editorを使用し、Markdown、Mermaid、PlantUMLの強調表示と補完、見出し・図の
+アウトライン、検索・置換、Undo、`Ctrl+S`、プレビューとのスクロール同期を提供します。プレビューの
+図はズーム、SVG/PNGコピー、SVG保存ができます。
+
+ローカルLLMは標準でOllama（`http://127.0.0.1:11434`）へ接続します。Windowsでは次のスクリプトで
+Ollamaをインストールできます。モデル名を指定するとモデルも取得します。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/setup_local_llm_windows.ps1 -Model "使用するモデル名"
+```
+
+ツールバーの「Local LLM」から、選択範囲または文書全体について理由を質問したり、編集案を生成して
+Undo可能な状態で適用できます。LM StudioなどのOpenAI互換ローカルサーバーを使う場合は次の環境変数を
+設定します。
+
+接続方式・URL・タイムアウトは画面内でも設定でき、ブラウザのローカルストレージへ保存されます。
+用途ごとに選んだモデルも記憶されます。応答はストリーミング表示され、「生成停止」で中断できます。
+編集案はMonaco Diff Editorで比較・調整でき、適用前にコードフェンス、図ID重複、Mermaid、PlantUMLの
+構文を検査します。送信範囲は「選択範囲」「現在の見出し」「文書全体」から選択でき、概算トークン数も
+表示されます。
+
+```powershell
+$env:MDFLOW_LLM_PROVIDER = "openai"
+$env:MDFLOW_LLM_URL = "http://127.0.0.1:1234/v1"
+$env:MDFLOW_LLM_MODEL = "ローカルモデル名"
 ```
 
 - ルール式は `&& || ! == != < <= > >=` に対応（`eval` 不使用の安全な AST 評価）。

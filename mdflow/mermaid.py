@@ -76,17 +76,25 @@ def is_flowchart(code: str) -> bool:
 
 def parse_node_ids(code: str) -> set[str]:
     """flowchart コードから宣言されているノードIDの集合を返す（ヒューリスティック）."""
-    ids: set[str] = set()
+    return set(node_ids_ordered(code))
+
+
+def node_ids_ordered(code: str) -> list[str]:
+    """ノードIDを初出順で返す（登録フォームのチェックボックス列挙用）."""
+    seen: dict[str, None] = {}
     for line in code.splitlines():
         stripped = line.strip()
         if not stripped or stripped.startswith("%%"):
             continue
-        for m in _SHAPE_RE.finditer(stripped):
-            ids.add(m.group(1))
         for m in _ARROW_RE.finditer(stripped):
-            ids.add(m.group(1))
-            ids.add(m.group(2))
-    return {i for i in ids if i not in _RESERVED}
+            for gid in (m.group(1), m.group(2)):
+                if gid not in _RESERVED:
+                    seen.setdefault(gid, None)
+        for m in _SHAPE_RE.finditer(stripped):
+            gid = m.group(1)
+            if gid not in _RESERVED:
+                seen.setdefault(gid, None)
+    return list(seen.keys())
 
 
 @dataclass

@@ -7,22 +7,36 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from . import mapping, mermaid
 from .document import Document
 from .payload import Payload
 from .pptx_io import ImportResult
 
 
 def parse_doc(md: str) -> dict[str, Any]:
-    """図一覧・各図のプリセット名・保存済み選択状態を返す."""
+    """図一覧・各図のノードID・プリセット名・保存済み選択状態を返す."""
     doc = Document(md)
     diagrams = []
     for b in doc.blocks:
         mp = doc.get_mapping(b.diagram_id)
         diagrams.append({
             "id": b.label,
+            "nodes": mermaid.node_ids_ordered(b.code),
             "presets": mp.preset_names() if mp else [],
         })
     return {"diagrams": diagrams, "selected": doc.selected}
+
+
+def add_preset(md: str, diagram_id: str, name: str, when: str,
+               active_nodes: list[str]) -> dict[str, Any]:
+    """条件（プリセット）を mdflow-mapping ブロックに登録した Markdown を返す."""
+    if not diagram_id or diagram_id.startswith("#"):
+        return {"error": "図に『%% id: 名前』を付けてから条件を登録してください"}
+    try:
+        new_md = mapping.upsert_preset(md, diagram_id, name, when, active_nodes)
+    except Exception as e:  # noqa: BLE001
+        return {"error": str(e)}
+    return {"md": new_md, "message": f"条件を登録: {name}"}
 
 
 def render_diagram(md: str, diagram_id: str, conditions_json: str, preset: str) -> dict[str, Any]:
