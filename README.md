@@ -178,4 +178,10 @@ python -m pytest tests/e2e -q --browser chromium
 E2Eテストでは一時ポートでMdFlowを起動し、Monacoの検索・保存、アウトライン、Mermaidのズーム・
 SVGコピー、ローカルLLMのDiff表示・停止を実ブラウザで検証します。
 
+## 図の出力
+
+MermaidとPlantUMLは共通の図ツールからSVG保存、SVG/PNGコピー、1x～4xのPNG生成を利用できます。
+「全図ZIP」はSVG、PNG、元Markdown、manifestをまとめ、「全図PPT」は図ごとに1枚のスライドを作ります。
+「PDF」は図と本文に最適化した印刷表示を開き、OSのPDF保存機能を使用します。
+
 `md → ppt → md` のラウンドトリップ、ノート系フォールバック、hash改変検知を含む。

@@ -67,6 +67,28 @@ def export_ppt(
     return out_path
 
 
+def export_images_ppt(images: list[tuple[str, str | Path]], out_path: str | Path) -> Path:
+    """Export rendered diagram images as one slide per image."""
+    if not images:
+        raise ValueError("出力する図がありません")
+    prs = Presentation()
+    blank = prs.slide_layouts[6]
+    for title, image_path in images:
+        slide = prs.slides.add_slide(blank)
+        pic = slide.shapes.add_picture(str(image_path), Emu(0), Emu(0), width=prs.slide_width)
+        if pic.height > prs.slide_height:
+            ratio = pic.width / pic.height
+            pic.height = prs.slide_height
+            pic.width = int(pic.height * ratio)
+        pic.left = int((prs.slide_width - pic.width) / 2)
+        pic.top = int((prs.slide_height - pic.height) / 2)
+        slide.notes_slide.notes_text_frame.text = f"[MdFlow] {title}"
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    prs.save(out_path)
+    return out_path
+
+
 def _set_alt_text(pic, text: str) -> None:
     """python-pptx が公開しない descr(Alt Text) を直接設定."""
     cNvPr = pic._element.nvPicPr.cNvPr

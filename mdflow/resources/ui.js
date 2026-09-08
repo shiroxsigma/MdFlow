@@ -154,7 +154,9 @@ function initRenderers() {
       if (info === "plantuml" || info === "puml") {
         const source = token.content.replace(/\n$/, "");
         const line = token.map ? token.map[0] + 2 : 1;
-        return `<div class="plantuml-box" data-line="${line}"><pre class="plantuml-source">${escapeHtml(source)}</pre><div class="plantuml-status">PlantUML を描画中...</div></div>`;
+        const named = source.match(/^\s*@startuml\s+(\S+)/m);
+        const id = named ? named[1] : `plantuml-${env.pumlIndex++}`;
+        return `<div class="plantuml-box" data-line="${line}" data-id="${escapeHtml(id)}"><pre class="plantuml-source">${escapeHtml(source)}</pre><div class="plantuml-status">PlantUML を描画中...</div></div>`;
       }
       if (info !== "mermaid") return defFence(tokens, idx, options, env, self);
       let code = token.content.replace(/\n$/, "");
@@ -164,7 +166,7 @@ function initRenderers() {
       const selected = id === env.selectedId;
       if (selected && env.injected) code = env.injected;
       const cls = selected ? "mermaid-box selected" : "mermaid-box";
-      return `<div class="${cls}"><pre class="mermaid">${escapeHtml(code)}</pre></div>`;
+      return `<div class="${cls}" data-id="${escapeHtml(id)}"><pre class="mermaid">${escapeHtml(code)}</pre></div>`;
     };
   }
   if (window.mermaid) {
@@ -257,7 +259,7 @@ async function render() {
   // プレビュー
   const preview = $("preview");
   if (md) {
-    const env = { mmIndex: 0, selectedId: state.selectedId, injected: res.injected || "" };
+    const env = { mmIndex: 0, pumlIndex: 0, selectedId: state.selectedId, injected: res.injected || "" };
     preview.innerHTML = md.render(editorText(), env);
   } else {
     preview.innerHTML = "<pre>" + escapeHtml(editorText()) + "</pre>";
@@ -274,12 +276,15 @@ async function render() {
 
 // ---- SVG → PNG ラスタライズ（PPT貼付用）----
 function rasterizeSelected() {
+  return rasterizeElement(selectedDiagramElement(), Number($("export-scale").value) || 2);
+}
+
+function rasterizeElement(box, scale = 2) {
   return new Promise((resolve, reject) => {
-    let box = selectedDiagramElement();
     if (!box) return reject(new Error("描画済みの図が見つかりません"));
     const rect = box.getBoundingClientRect();
-    const scale = 2;
-    const w = Math.max(1, Math.round(rect.width)), h = Math.max(1, Math.round(rect.height));
+    const zoom = Number(box.style.transform.match(/scale\(([^)]+)\)/)?.[1] || 1);
+    const w = Math.max(1, Math.round(rect.width / zoom)), h = Math.max(1, Math.round(rect.height / zoom));
     const svg64 = box.tagName.toLowerCase() === "img" ? box.src :
       "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(new XMLSerializer().serializeToString(box))));
     const img = new Image();
@@ -340,6 +345,27 @@ async function copyPng() {
 async function saveDiagram() {
   try { download(new Blob([await selectedSvgText()], { type: "image/svg+xml" }), `${state.selectedId || "diagram"}.svg`); toast("SVGを保存しました"); }
   catch (e) { toast("保存失敗: " + e.message); }
+}
+
+async function collectRenderedDiagrams() {
+  await render();
+  const elements = [...document.querySelectorAll("#preview .mermaid-box svg, #preview .plantuml-diagram")];
+  return Promise.all(elements.map(async (element, index) => ({
+    name: element.closest(".mermaid-box, .plantuml-box")?.dataset.id || `diagram-${index + 1}`,
+    svg: element.tagName.toLowerCase() === "svg" ? new XMLSerializer().serializeToString(element) : await (await fetch(element.src)).text(),
+    png_dataurl: await rasterizeElement(element, Number($("export-scale").value) || 2),
+  })));
+}
+
+async function exportAll(path, filename) {
+  try {
+    const diagrams = await collectRenderedDiagrams();
+    if (!diagrams.length) throw new Error("出力する図がありません");
+    const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ diagrams, md: editorText() }) });
+    if (!response.ok) throw new Error(await response.text());
+    download(await response.blob(), filename); toast(`${diagrams.length}件の図を出力しました`);
+  } catch (e) { toast("一括出力失敗: " + e.message); }
 }
 
 function syncPreviewFromEditor(scrollTop, scrollHeight) {
@@ -651,6 +677,9 @@ function wire() {
   $("btn-copy-svg").onclick = copySvg;
   $("btn-copy-png").onclick = copyPng;
   $("btn-save-diagram").onclick = saveDiagram;
+  $("btn-export-all").onclick = () => exportAll("/api/export/bundle", "mdflow-diagrams.zip");
+  $("btn-export-ppt-all").onclick = () => exportAll("/api/export/ppt-multi", "mdflow-diagrams.pptx");
+  $("btn-print-pdf").onclick = () => window.print();
   $("llm-close").onclick = () => { if (llmAbort) llmAbort.abort(); $("llm-backdrop").classList.add("hidden"); };
   $("llm-connect").onclick = () => connectLlm(true);
   $("llm-provider").onchange = () => { $("llm-url").value = $("llm-provider").value === "ollama" ? "http://127.0.0.1:11434" : "http://127.0.0.1:1234/v1"; };

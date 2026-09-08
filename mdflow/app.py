@@ -5,11 +5,15 @@ import base64
 import os
 import shutil
 import tempfile
+import io
+import json
+import re
+import zipfile
 from pathlib import Path
 
 from fastapi import UploadFile
 from starlette.background import BackgroundTask
-from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
 from nicegui import app, ui
 
 from . import edit_safety, llm_context, local_llm, plantuml, pptx_io, webapi
@@ -127,6 +131,50 @@ def export_ppt(payload: dict) -> FileResponse:
     output = work / f"{diagram_id}.pptx"
     try:
         pptx_io.export_ppt(result, png, output, title=diagram_id)
+    except Exception:
+        shutil.rmtree(work, ignore_errors=True)
+        raise
+    return FileResponse(output, filename=output.name,
+                        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                        background=BackgroundTask(shutil.rmtree, work, ignore_errors=True))
+
+
+def _safe_export_name(value: str, fallback: str = "diagram") -> str:
+    cleaned = re.sub(r"[^\w.\-]+", "-", value, flags=re.UNICODE).strip(".-")
+    return cleaned[:80] or fallback
+
+
+@app.post("/api/export/bundle")
+def export_bundle(payload: dict) -> Response:
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
+        used: set[str] = set()
+        for index, item in enumerate(payload.get("diagrams", []), 1):
+            base = _safe_export_name(item.get("name", ""), f"diagram-{index}")
+            while base in used:
+                base += f"-{index}"
+            used.add(base)
+            if item.get("svg"):
+                archive.writestr(f"{base}.svg", item["svg"].encode("utf-8"))
+            if item.get("png_dataurl"):
+                archive.writestr(f"{base}.png", base64.b64decode(item["png_dataurl"].split(",", 1)[-1]))
+        archive.writestr("document.md", payload.get("md", "").encode("utf-8"))
+        archive.writestr("manifest.json", json.dumps({"diagrams": list(used)}, ensure_ascii=False).encode("utf-8"))
+    return Response(output.getvalue(), media_type="application/zip",
+                    headers={"Content-Disposition": 'attachment; filename="mdflow-diagrams.zip"'})
+
+
+@app.post("/api/export/ppt-multi")
+def export_ppt_multi(payload: dict) -> FileResponse:
+    work = Path(tempfile.mkdtemp(prefix="mdflow_multi_"))
+    try:
+        images = []
+        for index, item in enumerate(payload.get("diagrams", []), 1):
+            path = work / f"diagram-{index}.png"
+            path.write_bytes(base64.b64decode(item.get("png_dataurl", "").split(",", 1)[-1]))
+            images.append((_safe_export_name(item.get("name", ""), f"diagram-{index}"), path))
+        output = work / "mdflow-diagrams.pptx"
+        pptx_io.export_images_ppt(images, output)
     except Exception:
         shutil.rmtree(work, ignore_errors=True)
         raise

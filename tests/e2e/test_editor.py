@@ -28,6 +28,10 @@ def test_mermaid_zoom_and_svg_copy(app_page, context):
     app_page.locator("#btn-copy-svg").click()
     expect(app_page.locator("#toast")).to_contain_text("SVGをコピー")
     assert "<svg" in app_page.evaluate("navigator.clipboard.readText()")
+    app_page.locator("#export-scale").select_option("1")
+    with app_page.expect_download() as download:
+        app_page.locator("#btn-export-all").click()
+    assert download.value.suggested_filename == "mdflow-diagrams.zip"
 
 
 def test_llm_diff_and_stop(app_page):

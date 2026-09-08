@@ -219,3 +219,9 @@ button.danger { color: #fff; background: var(--danger); border: 0; }
   #outline { width: 138px; flex-basis: 138px; }
   .brand small, #btn-add-cond { display: none; }
 }
+
+@media print {
+  #topbar, #left, #divider, #statusbar, .pane-head { display: none !important; }
+  body, #main, #right, #preview { display: block; height: auto; overflow: visible; background: #fff; color: #111; }
+  #preview { padding: 0; }
+}
