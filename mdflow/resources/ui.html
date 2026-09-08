@@ -9,6 +9,8 @@
   <div id="topbar">
     <span class="brand">🗺 MdFlow<small>仕様書・フローチャート統合</small></span>
     <span class="file-name" id="file-name">samples/login.md</span>
+    <select id="recent-files" title="最近使ったファイル"><option value="">最近使ったファイル</option></select>
+    <label class="autosave"><input id="auto-save" type="checkbox">自動保存</label>
     <span class="spacer"></span>
 
     <label class="ctl">図</label>
@@ -20,6 +22,7 @@
     <button id="btn-llm">✦ Local LLM</button>
     <button id="btn-open">開く</button>
     <button id="btn-save" class="primary">保存</button>
+    <button id="btn-save-as">名前を付けて保存</button>
     <button id="btn-export" class="accent">PPTへ出力</button>
     <button id="btn-import">PPT取込</button>
   </div>
@@ -57,6 +60,7 @@
     <span id="status-engine"></span>
   </div>
   <div id="toast"></div>
+  <div id="recovery-banner" class="hidden">未保存の編集内容があります。<button id="btn-recover">復元</button><button id="btn-dismiss-recovery">破棄</button></div>
 
   <div id="llm-backdrop" class="hidden">
     <section id="llm-panel">

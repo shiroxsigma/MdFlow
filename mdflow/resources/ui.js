@@ -9,7 +9,8 @@ let llmDiffEditor = null;
 let llmDiffModels = [];
 let llmValidationTimer = null;
 const state = { md: "", selectedId: "", preset: "", diagrams: [], zoom: 1, renderId: 0,
-  llmSelection: null, llmMode: "ask", syncingScroll: false };
+  llmSelection: null, llmMode: "ask", syncingScroll: false, fileHandle: null,
+  lastSaved: "", lastModified: 0, recoveryTimer: null, autoSaveTimer: null };
 
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) =>
@@ -101,7 +102,7 @@ function initEditor(initialText) {
           return { suggestions: entries.map(([label, insertText]) => ({ label, kind: monaco.languages.CompletionItemKind.Snippet,
             insertText, insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, range })) };
         } });
-      editor.onDidChangeModelContent(() => { scheduleRender(); updateOutline(); });
+      editor.onDidChangeModelContent(() => { scheduleRender(); updateOutline(); documentChanged(); });
       editor.onDidChangeCursorPosition((e) => { $("cursor-position").textContent = `Ln ${e.position.lineNumber}, Col ${e.position.column}`; });
       editor.onDidScrollChange((e) => syncPreviewFromEditor(e.scrollTop, e.scrollHeight));
       editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, onSave);
@@ -384,17 +385,105 @@ function syncEditorFromPreview() {
 
 // ---- ボタン ----
 async function onOpen() {
+  if (window.showOpenFilePicker) {
+    try {
+      const [handle] = await window.showOpenFilePicker({ types: [{ description: "Markdown", accept: { "text/markdown": [".md", ".markdown"] } }] });
+      await loadFileHandle(handle); return;
+    } catch (e) { if (e.name === "AbortError") return; }
+  }
   const file = await chooseFile(".md,text/markdown,text/plain");
   if (file) {
     setEditorText(await file.text());
     $("file-name").textContent = file.name;
+    state.fileHandle = null; markSaved();
     await render(); toast("Markdownを開きました");
   }
 }
 async function onSave() {
+  if (state.fileHandle) {
+    try { await writeFileHandle(); toast("Markdownを上書き保存しました"); return; }
+    catch (e) { toast("上書き保存失敗: " + e.message); return; }
+  }
   const filename = ($("file-name").textContent || "mdflow.md").split(/[\\/]/).pop();
   download(new Blob([editorText()], { type: "text/markdown;charset=utf-8" }), filename);
-  toast("Markdownを保存しました");
+  markSaved(); toast("Markdownを保存しました");
+}
+
+async function onSaveAs() {
+  if (!window.showSaveFilePicker) { await onSave(); return; }
+  try {
+    const handle = await window.showSaveFilePicker({ suggestedName: ($("file-name").textContent || "mdflow.md").replace(/\s●$/, ""),
+      types: [{ description: "Markdown", accept: { "text/markdown": [".md"] } }] });
+    state.fileHandle = handle; $("file-name").textContent = handle.name; await writeFileHandle(); await rememberFile(handle); toast("保存しました");
+  } catch (e) { if (e.name !== "AbortError") toast("保存失敗: " + e.message); }
+}
+
+function documentChanged() {
+  const dirty = editorText() !== state.lastSaved; $("file-name").classList.toggle("dirty", dirty);
+  clearTimeout(state.recoveryTimer); state.recoveryTimer = setTimeout(() => {
+    if (editorText() !== state.lastSaved) localStorage.setItem("mdflow.recovery", JSON.stringify({ text: editorText(), name: $("file-name").textContent, at: Date.now() }));
+  }, 400);
+  if (dirty && $("auto-save").checked && state.fileHandle) {
+    clearTimeout(state.autoSaveTimer); state.autoSaveTimer = setTimeout(() => writeFileHandle().catch((e) => toast("自動保存失敗: " + e.message)), 900);
+  }
+}
+
+function markSaved() {
+  state.lastSaved = editorText(); $("file-name").classList.remove("dirty"); localStorage.removeItem("mdflow.recovery");
+}
+
+async function loadFileHandle(handle) {
+  if (!await ensureFilePermission(handle, false)) throw new Error("ファイルの読み取りが許可されませんでした");
+  const file = await handle.getFile(); state.fileHandle = handle; state.lastModified = file.lastModified;
+  setEditorText(await file.text()); $("file-name").textContent = handle.name; markSaved(); await rememberFile(handle); await render(); toast("Markdownを開きました");
+}
+
+async function writeFileHandle() {
+  if (!await ensureFilePermission(state.fileHandle, true)) throw new Error("書き込みが許可されませんでした");
+  const writable = await state.fileHandle.createWritable(); await writable.write(editorText()); await writable.close();
+  const file = await state.fileHandle.getFile(); state.lastModified = file.lastModified; markSaved();
+}
+
+async function ensureFilePermission(handle, write) {
+  const options = { mode: write ? "readwrite" : "read" };
+  if ((await handle.queryPermission(options)) === "granted") return true;
+  return (await handle.requestPermission(options)) === "granted";
+}
+
+function fileDb() {
+  return new Promise((resolve, reject) => { const request = indexedDB.open("mdflow-files", 1);
+    request.onupgradeneeded = () => request.result.createObjectStore("handles"); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
+}
+async function rememberFile(handle) {
+  const db = await fileDb(); const tx = db.transaction("handles", "readwrite"); tx.objectStore("handles").put(handle, handle.name);
+  const recent = JSON.parse(localStorage.getItem("mdflow.recent") || "[]").filter((name) => name !== handle.name);
+  recent.unshift(handle.name); localStorage.setItem("mdflow.recent", JSON.stringify(recent.slice(0, 8))); refreshRecentFiles();
+}
+function refreshRecentFiles() {
+  const select = $("recent-files"); select.innerHTML = '<option value="">最近使ったファイル</option>';
+  JSON.parse(localStorage.getItem("mdflow.recent") || "[]").forEach((name) => { const option = document.createElement("option"); option.value = name; option.textContent = name; select.appendChild(option); });
+}
+async function openRecent(name) {
+  if (!name) return; try { const db = await fileDb(); const request = db.transaction("handles").objectStore("handles").get(name);
+    request.onsuccess = () => request.result ? loadFileHandle(request.result).catch((e) => toast(e.message)) : toast("ファイル履歴が見つかりません"); }
+  catch (e) { toast("履歴を開けません: " + e.message); }
+}
+
+async function checkExternalChange() {
+  if (!state.fileHandle) return;
+  try { const file = await state.fileHandle.getFile(); if (state.lastModified && file.lastModified > state.lastModified) {
+    if (editorText() === state.lastSaved || confirm("ファイルが外部で変更されました。再読み込みしますか？")) await loadFileHandle(state.fileHandle);
+    else { state.lastModified = file.lastModified; toast("外部変更があります（未保存編集を保持）"); }
+  } } catch (_) { /* permission may be unavailable while the window is inactive */ }
+}
+
+function offerRecovery(initialText) {
+  const recovery = JSON.parse(localStorage.getItem("mdflow.recovery") || "null");
+  if (!recovery || recovery.text === initialText) return;
+  $("recovery-banner").classList.remove("hidden");
+  $("btn-recover").onclick = () => { setEditorText(recovery.text); $("file-name").textContent = recovery.name || "recovered.md";
+    $("recovery-banner").classList.add("hidden"); toast("未保存の編集を復元しました"); };
+  $("btn-dismiss-recovery").onclick = () => { localStorage.removeItem("mdflow.recovery"); $("recovery-banner").classList.add("hidden"); };
 }
 async function onExport() {
   try {
@@ -668,6 +757,7 @@ function initDivider() {
 function wire() {
   $("btn-open").onclick = onOpen;
   $("btn-save").onclick = onSave;
+  $("btn-save-as").onclick = onSaveAs;
   $("btn-export").onclick = onExport;
   $("btn-import").onclick = onImport;
   $("btn-add-cond").onclick = openCondModal;
@@ -696,7 +786,9 @@ function wire() {
   $("modal-backdrop").addEventListener("click", (e) => {
     if (e.target.id === "modal-backdrop") closeCondModal();
   });
-  $("editor-fallback").addEventListener("input", scheduleRender);
+  $("editor-fallback").addEventListener("input", () => { scheduleRender(); documentChanged(); });
+  $("recent-files").onchange = () => { openRecent($("recent-files").value); $("recent-files").value = ""; };
+  $("auto-save").onchange = () => localStorage.setItem("mdflow.autosave", $("auto-save").checked ? "1" : "0");
   $("conditions").addEventListener("input", scheduleRender);
   $("preview").addEventListener("scroll", syncEditorFromPreview);
   $("preview").addEventListener("click", selectPreviewDiagram);
@@ -709,8 +801,16 @@ function wire() {
 window.addEventListener("DOMContentLoaded", async () => {
   initRenderers();
   wire();
+  refreshRecentFiles(); $("auto-save").checked = localStorage.getItem("mdflow.autosave") === "1";
   api("/api/initial").then(async (initial) => {
     await initEditor(initial.text || "");
+    state.lastSaved = initial.text || "";
+    offerRecovery(initial.text || "");
     await render();
   }).catch((e) => toast("初期化に失敗しました: " + e.message));
+  setInterval(checkExternalChange, 3000);
+});
+
+window.addEventListener("beforeunload", (event) => {
+  if (editor && editorText() !== state.lastSaved) { event.preventDefault(); event.returnValue = ""; }
 });

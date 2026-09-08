@@ -39,6 +39,10 @@ body {
 .brand small { color: var(--muted); font-weight: 400; margin-left: 4px; }
 #topbar .spacer { flex: 1; }
 .file-name { color: var(--muted); font-size: 12px; }
+.file-name.dirty::after { content: " ●"; color: var(--warn); }
+.autosave { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 11px; white-space: nowrap; }
+#recent-files { max-width: 160px; }
+#recovery-banner { position: fixed; top: 50px; left: 50%; transform: translateX(-50%); z-index: 190; padding: 9px 12px; background: var(--bg3); border: 1px solid var(--warn); border-radius: 8px; box-shadow: 0 5px 20px #0008; }
 
 label.ctl { color: var(--muted); font-size: 12px; }
 select, input, button, textarea {

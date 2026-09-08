@@ -18,6 +18,18 @@ def test_monaco_outline_search_and_save(app_page):
     assert download.value.suggested_filename.endswith(".md")
 
 
+def test_dirty_state_and_crash_recovery(app_page):
+    app_page.evaluate("editor.setValue('# Unsaved recovery')")
+    expect(app_page.locator("#file-name")).to_have_class(re.compile(r"dirty"))
+    app_page.wait_for_function("localStorage.getItem('mdflow.recovery') !== null")
+    app_page.on("dialog", lambda dialog: dialog.accept())
+    app_page.reload()
+    app_page.locator(".monaco-editor").wait_for(timeout=20_000)
+    expect(app_page.locator("#recovery-banner")).to_be_visible()
+    app_page.locator("#btn-recover").click()
+    expect(app_page.locator("#preview")).to_contain_text("Unsaved recovery")
+
+
 def test_mermaid_zoom_and_svg_copy(app_page, context):
     context.grant_permissions(["clipboard-read", "clipboard-write"], origin=app_page.url)
     app_page.evaluate("editor.setValue('```mermaid\\nflowchart TD\\n A-->B\\n```')")
