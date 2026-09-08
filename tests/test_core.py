@@ -10,7 +10,7 @@ from mdflow import frontmatter, mapping, mermaid  # noqa: E402
 from mdflow.document import Document  # noqa: E402
 from mdflow.payload import Payload, decode, encode  # noqa: E402
 
-SAMPLE = (Path(__file__).resolve().parents[1] / "samples" / "login.md").read_text(
+SAMPLE = (Path(__file__).resolve().parent / "fixtures" / "login.md").read_text(
     encoding="utf-8"
 )
 

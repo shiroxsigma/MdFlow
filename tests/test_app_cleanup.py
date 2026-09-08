@@ -7,6 +7,13 @@ from fastapi import UploadFile
 from mdflow import app as app_module
 
 
+def test_initial_falls_back_when_bundled_sample_is_missing(monkeypatch, tmp_path):
+    monkeypatch.setattr(app_module, "_SAMPLE", tmp_path / "missing.md")
+    result = app_module.initial()
+    assert result["version"]
+    assert "MdFlow" in result["text"]
+
+
 def test_import_cleans_temporary_directory(monkeypatch, tmp_path):
     work = tmp_path / "work"
     monkeypatch.setattr(app_module.tempfile, "mkdtemp", lambda prefix: _mkdir(work))

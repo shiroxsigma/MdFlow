@@ -20,13 +20,18 @@ from . import __version__, edit_safety, llm_connections, llm_context, local_llm,
 
 _RES = Path(__file__).parent / "resources"
 _SAMPLE = Path(__file__).parents[1] / "samples" / "login.md"
+_WELCOME = "# MdFlow\n\n左のEXPLORERまたは［ファイル］→［開く］からMarkdownを開いてください。\n"
 
 app.add_static_files("/assets", _RES)
 
 
 @app.get("/api/initial")
 def initial() -> dict[str, str]:
-    return {"text": _SAMPLE.read_text("utf-8"), "version": __version__}
+    try:
+        text = _SAMPLE.read_text("utf-8")
+    except (OSError, UnicodeError):
+        text = _WELCOME
+    return {"text": text, "version": __version__}
 
 
 @app.post("/api/parse")

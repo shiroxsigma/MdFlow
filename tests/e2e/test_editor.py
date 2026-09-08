@@ -45,6 +45,21 @@ def test_markdown_without_diagram_does_not_render_empty_id(app_page):
 
 
 def test_quick_preset_picker_visualizes_route(app_page):
+    source = """```mermaid
+%% id: quick-flow
+flowchart TD
+  A --> B
+  A --> C
+```
+```mdflow-mapping
+diagram: quick-flow
+presets:
+  管理者・正常:
+    active_nodes: [A, B]
+  一般・正常:
+    active_nodes: [A, C]
+```"""
+    app_page.evaluate("value => editor.setValue(value)", source)
     expect(app_page.locator("#preset-buttons")).to_contain_text("管理者・正常")
     app_page.locator("#preset-buttons .preset-chip", has_text="一般・正常").click()
     expect(app_page.locator("#status-preset")).to_have_text("プリセット: 一般・正常")

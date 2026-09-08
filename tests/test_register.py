@@ -7,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from mdflow import mapping, mermaid, webapi  # noqa: E402
 from mdflow.document import Document  # noqa: E402
 
-SAMPLE = (Path(__file__).resolve().parents[1] / "samples" / "login.md").read_text("utf-8")
+SAMPLE = (Path(__file__).resolve().parent / "fixtures" / "login.md").read_text("utf-8")
 
 
 def test_node_ids_ordered():

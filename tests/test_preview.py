@@ -7,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from mdflow.document import Document  # noqa: E402
 from mdflow.preview import build_html  # noqa: E402
 
-SAMPLE = (Path(__file__).resolve().parents[1] / "samples" / "login.md").read_text(
+SAMPLE = (Path(__file__).resolve().parent / "fixtures" / "login.md").read_text(
     encoding="utf-8"
 )
 
