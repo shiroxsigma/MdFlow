@@ -39,7 +39,7 @@
         </div>
       </div>
       <div id="cond-strip">
-        <div id="route-picker"><label class="ctl">表示経路</label><span id="quick-diagram"></span><div id="preset-buttons"></div><button id="btn-generate-paths-inline" title="選択図の開始から終了までの経路を作成">全経路を作成</button></div>
+        <div id="route-picker"><label class="ctl" for="quick-diagram">対象図</label><select id="quick-diagram" title="経路を表示するMermaid図"></select><div id="preset-buttons"></div><button id="btn-generate-paths-inline" title="選択図の開始から終了までの経路を作成">全経路を作成</button></div>
         <div id="path-generation-status" class="hidden" role="status"></div>
         <details id="condition-advanced"><summary>条件JSONを編集</summary>
           <textarea id="conditions">{"role": "admin", "error_count": 0}</textarea>

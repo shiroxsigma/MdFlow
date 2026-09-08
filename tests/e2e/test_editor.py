@@ -100,7 +100,8 @@ flowchart TD
   D --> E
 \`\`\``)""")
     app_page.locator("#sel-diagram option[value='all-routes']").wait_for(state="attached", timeout=10_000)
-    app_page.evaluate("document.getElementById('sel-diagram').value = 'all-routes'; state.selectedId = 'all-routes'")
+    expect(app_page.locator("#quick-diagram")).to_have_value("all-routes")
+    app_page.locator("#quick-diagram").select_option("all-routes")
     app_page.locator("#btn-generate-paths-inline").click()
     app_page.wait_for_function("editor.getValue().includes('自動経路 01')")
     expect(app_page.locator("#path-generation-status")).to_contain_text("2件の経路を作成")
@@ -123,15 +124,39 @@ stateDiagram-v2
   地図出力中 --> 契約国外状態
   契約国外状態 --> 地図出力中
   地図出力中 --> [*]
-  出力無効状態 --> [*]
+    出力無効状態 --> [*]
 ```"""
     app_page.evaluate("value => editor.setValue(value)", source)
-    app_page.locator("#sel-diagram option[value='state-flow']").wait_for(state="attached", timeout=10_000)
     app_page.locator("#btn-generate-paths-inline").click()
     expect(app_page.locator("#path-generation-status")).to_contain_text("3件の経路を作成")
+    expect(app_page.locator("#quick-diagram")).to_have_value("state-flow")
     app_page.locator("#preset-buttons .preset-chip", has_text="自動経路 01").click()
     expect(app_page.locator("#preview .mermaid-box svg")).to_be_visible(timeout=10_000)
     expect(app_page.locator("#status-warn")).not_to_contain_text("構文エラー")
+
+
+def test_visible_diagram_selector_switches_path_target(app_page):
+    source = """```mermaid
+%% id: first-flow
+flowchart TD
+  A --> B
+```
+
+```mermaid
+%% id: second-flow
+flowchart TD
+  X --> Y
+  X --> Z
+```"""
+    app_page.evaluate("value => editor.setValue(value)", source)
+    app_page.locator("#quick-diagram option[value='second-flow']").wait_for(state="attached", timeout=10_000)
+    app_page.locator("details.toolbar-menu").nth(1).locator("summary").click()
+    expect(app_page.locator("#sel-diagram")).to_be_visible()
+    app_page.locator("#sel-diagram").select_option("second-flow")
+    expect(app_page.locator("#quick-diagram")).to_have_value("second-flow")
+    app_page.locator("#btn-generate-paths-inline").click()
+    expect(app_page.locator("#path-generation-status")).to_contain_text("2件の経路を作成")
+    assert "diagram: second-flow" in app_page.evaluate("editor.getValue()")
 
 
 def test_command_palette(app_page):

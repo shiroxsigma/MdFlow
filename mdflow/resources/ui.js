@@ -274,7 +274,16 @@ function buildPresetOptions(info) {
 
 function buildQuickPresetButtons() {
   const host = $("preset-buttons"); host.innerHTML = "";
-  $("quick-diagram").textContent = state.selectedId || "図なし";
+  const quickDiagram = $("quick-diagram"); quickDiagram.innerHTML = "";
+  if (!state.diagrams.length) {
+    const empty = document.createElement("option"); empty.value = ""; empty.textContent = "Mermaid図なし";
+    quickDiagram.appendChild(empty); quickDiagram.disabled = true;
+  } else {
+    quickDiagram.disabled = false;
+    state.diagrams.forEach((diagram) => { const option = document.createElement("option");
+      option.value = diagram.id; option.textContent = diagram.id; quickDiagram.appendChild(option); });
+    if (state.diagrams.some((diagram) => diagram.id === state.selectedId)) quickDiagram.value = state.selectedId;
+  }
   [...$("sel-preset").options].forEach((option) => {
     const button = document.createElement("button"); button.className = "preset-chip";
     button.dataset.preset = option.value; button.textContent = option.value ? option.textContent : "条件から自動";
@@ -708,7 +717,13 @@ function openCondModal() {
 function closeCondModal() { $("modal-backdrop").classList.add("hidden"); }
 
 async function generateAllPaths() {
-  const diagram = state.diagrams.find((item) => item.id === state.selectedId);
+  // ファイル切替直後でも、古いUI状態ではなく現在のMarkdownから図一覧を確定する。
+  const selectorRenderId = ++state.renderId;
+  if (!await refreshSelectors(selectorRenderId)) return;
+  const selectedId = $("quick-diagram").value || $("sel-diagram").value
+    || (state.diagrams.length === 1 ? state.diagrams[0].id : "");
+  if (selectedId) { state.selectedId = selectedId; $("sel-diagram").value = selectedId; }
+  const diagram = state.diagrams.find((item) => item.id === selectedId);
   const status = $("path-generation-status");
   const buttons = [$("btn-generate-paths"), $("btn-generate-paths-inline")];
   const showStatus = (message, type = "") => { status.textContent = message;
@@ -1027,6 +1042,8 @@ function wire() {
   document.addEventListener("keydown", (event) => { if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "p") {
     event.preventDefault(); openCommandPalette(); } });
   $("sel-diagram").addEventListener("change", () => { state.selectedId = $("sel-diagram").value; render(); });
+  $("quick-diagram").addEventListener("change", () => { state.selectedId = $("quick-diagram").value;
+    $("sel-diagram").value = state.selectedId; render(); });
   $("sel-preset").addEventListener("change", render);
   initDivider();
 }
