@@ -19,7 +19,17 @@ jobs:
           cache: pip
       - run: pip install -r requirements-dev.txt
       - run: ruff check .
-      - run: pytest tests --ignore=tests/e2e -q --junitxml=test-results/unit.xml
+      - name: Run unit tests
+        shell: pwsh
+        run: |
+          $output = pytest tests --ignore=tests/e2e -q --junitxml=test-results/unit.xml 2>&1
+          $exitCode = $LASTEXITCODE
+          $output | ForEach-Object { Write-Output $_ }
+          if ($exitCode -ne 0) {
+            $details = (($output | Select-Object -Last 40) -join "`n").Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Output "::error title=Unit test details::$details"
+            exit $exitCode
+          }
       - uses: actions/upload-artifact@v5
         if: ${{ !cancelled() }}
         with:
