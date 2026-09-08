@@ -75,6 +75,16 @@ def test_extract_and_ids():
     assert {"A", "B", "C", "D", "E", "F", "G"} <= ids
 
 
+def test_extract_and_mapping_accept_windows_crlf():
+    windows_text = SAMPLE.replace("\n", "\r\n")
+    blocks = mermaid.extract_blocks(windows_text)
+    assert len(blocks) == 1
+    assert blocks[0].diagram_id == "flow-login"
+    mappings = mapping.extract_mappings(windows_text)
+    assert mappings[0].diagram_id == "flow-login"
+    assert mappings[0].preset_names()
+
+
 def test_inject_validates_missing():
     code = "flowchart TD\n A-->B\n B-->C"
     res = mermaid.inject_style(code, ["A", "B", "Z"], "fill:#f99")

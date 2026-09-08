@@ -28,7 +28,7 @@ from typing import Any, Optional
 import yaml
 
 _BLOCK_RE = re.compile(
-    r"^```[ \t]*(?:yaml[ \t]+)?mdflow-mapping[ \t]*\n(.*?)^```",
+    r"^```[ \t]*(?:yaml[ \t]+)?mdflow-mapping[ \t]*\r?\n(.*?)^```",
     re.DOTALL | re.MULTILINE,
 )
 

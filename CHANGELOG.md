@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.8 - 2026-09-08
+
+- Windowsのブラウザで開いたCRLF文書からMermaid図と条件mappingを認識できない問題を修正
+
 ## 0.3.7 - 2026-09-08
 
 - `samples/login.md`が移動・削除されていても初期APIを失敗させずエディタを起動

@@ -13,7 +13,7 @@ from typing import Optional
 
 # ```mermaid ... ``` ブロック（インデントフェンス非対応・素直な形のみ）
 _FENCE_RE = re.compile(
-    r"^```[ \t]*mermaid[ \t]*\n(.*?)^```", re.DOTALL | re.MULTILINE
+    r"^```[ \t]*mermaid[ \t]*\r?\n(.*?)^```", re.DOTALL | re.MULTILINE
 )
 _ID_COMMENT_RE = re.compile(r"^\s*%%\s*id\s*:\s*(\S+)", re.MULTILINE)
 

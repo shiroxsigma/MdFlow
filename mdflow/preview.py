@@ -18,7 +18,7 @@ try:  # 任意依存: あればMarkdownを整形、無くても図は描画で�
 except Exception:  # pragma: no cover
     _md = None
 
-_FENCE_RE = re.compile(r"```[ \t]*mermaid[ \t]*\n(.*?)```", re.DOTALL)
+_FENCE_RE = re.compile(r"```[ \t]*mermaid[ \t]*\r?\n(.*?)```", re.DOTALL)
 
 _TEMPLATE = """<!doctype html>
 <html lang="ja"><head><meta charset="utf-8">

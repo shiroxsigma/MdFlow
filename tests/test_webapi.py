@@ -21,6 +21,12 @@ def test_parse_doc():
     assert info["selected"]["flow-login"] == "管理者・正常"
 
 
+def test_parse_doc_accepts_browser_preserved_windows_crlf():
+    info = webapi.parse_doc(SAMPLE.replace("\n", "\r\n"))
+    assert info["diagrams"][0]["id"] == "flow-login"
+    assert "管理者・正常" in info["diagrams"][0]["presets"]
+
+
 def test_render_diagram_by_conditions():
     res = webapi.render_diagram(SAMPLE, "flow-login",
                                '{"role":"user","error_count":0}', "")
