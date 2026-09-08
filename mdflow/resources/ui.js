@@ -11,7 +11,7 @@ let llmValidationTimer = null;
 const state = { md: "", selectedId: "", preset: "", diagrams: [], zoom: 1, renderId: 0,
   llmSelection: null, llmMode: "ask", syncingScroll: false, fileHandle: null,
   directoryHandle: null, activeExplorerPath: "", lastSaved: "", lastModified: 0,
-  llmServers: [], recoveryTimer: null, autoSaveTimer: null };
+  llmServers: [], previewRenderDepth: 0, recoveryTimer: null, autoSaveTimer: null };
 
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) =>
@@ -65,7 +65,12 @@ function toast(msg) {
 
 // ---- Monaco editor ----
 function editorText() { return editor ? editor.getValue() : $("editor-fallback").value; }
-function setEditorText(v) { if (editor) editor.setValue(v); else $("editor-fallback").value = v; }
+function setEditorText(v, preserveView = false) {
+  if (!editor) { $("editor-fallback").value = v; return; }
+  const viewState = preserveView ? editor.saveViewState() : null;
+  editor.setValue(v);
+  if (viewState) editor.restoreViewState(viewState);
+}
 
 function currentFenceLanguage(model, line) {
   let language = "";
@@ -258,6 +263,27 @@ function buildPresetOptions(info) {
   const saved = info && info.selected ? info.selected[state.selectedId] : "";
   if ([...selPre.options].some((o) => o.value === prev)) selPre.value = prev;
   else if (saved && [...selPre.options].some((o) => o.value === saved)) selPre.value = saved;
+  buildQuickPresetButtons();
+}
+
+function buildQuickPresetButtons() {
+  const host = $("preset-buttons"); host.innerHTML = "";
+  $("quick-diagram").textContent = state.selectedId || "図なし";
+  [...$("sel-preset").options].forEach((option) => {
+    const button = document.createElement("button"); button.className = "preset-chip";
+    button.dataset.preset = option.value; button.textContent = option.value ? option.textContent : "条件から自動";
+    button.title = option.textContent; button.onclick = () => { $("sel-preset").value = option.value; render(); };
+    host.appendChild(button);
+  });
+  updateQuickPresetState();
+}
+
+function updateQuickPresetState(resolved = "") {
+  const selected = $("sel-preset").value;
+  $("preset-buttons").querySelectorAll(".preset-chip").forEach((button) => {
+    button.classList.toggle("active", button.dataset.preset === selected);
+    button.classList.toggle("matched", !selected && Boolean(resolved) && button.dataset.preset === resolved);
+  });
 }
 
 async function render() {
@@ -271,26 +297,36 @@ async function render() {
 
   // ステータス
   $("status-preset").textContent = "プリセット: " + (res.preset || "(なし)");
+  updateQuickPresetState(res.preset || "");
   const warn = $("status-warn");
   warn.innerHTML = (res.warnings && res.warnings.length)
     ? '<span class="badge warn">⚠ ' + res.warnings.join(" / ") + "</span>" : "";
 
   // プレビュー
   const preview = $("preview");
-  if (md) {
-    const env = { mmIndex: 0, pumlIndex: 0, selectedId: state.selectedId, injected: res.injected || "" };
-    preview.innerHTML = md.render(editorText(), env);
-  } else {
-    preview.innerHTML = "<pre>" + escapeHtml(editorText()) + "</pre>";
+  const scrollRange = Math.max(1, preview.scrollHeight - preview.clientHeight);
+  const previewRatio = preview.scrollTop / scrollRange;
+  state.previewRenderDepth++;
+  try {
+    if (md) {
+      const env = { mmIndex: 0, pumlIndex: 0, selectedId: state.selectedId, injected: res.injected || "" };
+      preview.innerHTML = md.render(editorText(), env);
+    } else {
+      preview.innerHTML = "<pre>" + escapeHtml(editorText()) + "</pre>";
+    }
+    if (window.mermaid) {
+      try { await window.mermaid.run({ querySelector: "#preview .mermaid" }); }
+      catch (e) { console.warn(e); const line = Number(String(e.message || e).match(/line\s+(\d+)/i)?.[1]);
+        if (line) { warn.innerHTML = `<button class="badge danger" id="diagram-error">図の構文エラー: line ${line}</button>`;
+          $("diagram-error").onclick = () => revealLine(line); } }
+    }
+    if (renderId !== state.renderId) return;
+    await renderPlantUmlBlocks();
+    applyZoom();
+    preview.scrollTop = previewRatio * Math.max(0, preview.scrollHeight - preview.clientHeight);
+  } finally {
+    state.previewRenderDepth--;
   }
-  if (window.mermaid) {
-    try { await window.mermaid.run({ querySelector: "#preview .mermaid" }); }
-    catch (e) { console.warn(e); const line = Number(String(e.message || e).match(/line\s+(\d+)/i)?.[1]);
-      if (line) { warn.innerHTML = `<button class="badge danger" id="diagram-error">図の構文エラー: line ${line}</button>`;
-        $("diagram-error").onclick = () => revealLine(line); } }
-  }
-  await renderPlantUmlBlocks();
-  applyZoom();
 }
 
 // ---- SVG → PNG ラスタライズ（PPT貼付用）----
@@ -428,7 +464,7 @@ function syncPreviewFromEditor(scrollTop, scrollHeight) {
 }
 
 function syncEditorFromPreview() {
-  if (!editor || state.syncingScroll) return; const preview = $("preview");
+  if (!editor || state.syncingScroll || state.previewRenderDepth) return; const preview = $("preview");
   const ratio = preview.scrollTop / Math.max(1, preview.scrollHeight - preview.clientHeight);
   state.syncingScroll = true; editor.setScrollTop(ratio * Math.max(0, editor.getScrollHeight() - editor.getLayoutInfo().height));
   requestAnimationFrame(() => { state.syncingScroll = false; });
@@ -676,7 +712,7 @@ async function generateAllPaths() {
       `${index + 1}. ${path.join(" → ")}`).join("\n");
     const suffix = result.count > 8 ? `\n…ほか${result.count - 8}件` : "";
     if (!confirm(`${result.count}件の全経路プリセットを生成します。\n\n${preview}${suffix}`)) return;
-    setEditorText(result.md);
+    setEditorText(result.md, true);
     await render();
     const warning = (result.warnings || []).join(" / ");
     toast(`${result.count}件の経路を生成しました${warning ? `（${warning}）` : ""}`);
@@ -901,7 +937,7 @@ async function submitCond() {
   const res = JSON.parse(
     (await bcall("addPreset", editorText(), state.selectedId, name, when, JSON.stringify(nodes))) || "{}");
   if (res.error) { err.textContent = res.error; err.style.display = ""; return; }
-  setEditorText(res.md);
+  setEditorText(res.md, true);
   closeCondModal();
   await render();
   $("sel-preset").value = name;   // 登録直後のプリセットを選択表示

@@ -39,8 +39,10 @@
         </div>
       </div>
       <div id="cond-strip">
-        <label class="ctl">条件 (JSON)</label>
-        <textarea id="conditions">{"role": "admin", "error_count": 0}</textarea>
+        <div id="route-picker"><label class="ctl">表示経路</label><span id="quick-diagram"></span><div id="preset-buttons"></div></div>
+        <details id="condition-advanced"><summary>条件JSONを編集</summary>
+          <textarea id="conditions">{"role": "admin", "error_count": 0}</textarea>
+        </details>
       </div>
     </div>
     <div id="divider"></div>

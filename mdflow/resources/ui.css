@@ -142,9 +142,17 @@ button.accent {
 .outline-item.level-3 { padding-left: 29px; }
 
 /* conditions strip */
-#cond-strip { padding: 8px 12px; background: var(--bg2); border-top: 1px solid var(--border); flex: 0 0 auto; }
+#cond-strip { padding: 7px 10px; background: var(--bg2); border-top: 1px solid var(--border); flex: 0 0 auto; }
+#route-picker { display: flex; align-items: flex-start; gap: 7px; }
+#quick-diagram { flex: 0 0 auto; max-width: 110px; padding: 3px 6px; color: var(--accent2); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#preset-buttons { flex: 1; display: flex; gap: 5px; overflow-x: auto; padding-bottom: 3px; }
+.preset-chip { flex: 0 0 auto; max-width: 260px; padding: 3px 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); background: var(--bg); }
+.preset-chip.active { color: #10201e; background: var(--accent2); border-color: var(--accent2); }
+.preset-chip.matched:not(.active) { color: var(--accent2); border-color: var(--accent2); }
+#condition-advanced { margin-top: 3px; }
+#condition-advanced summary { width: max-content; cursor: pointer; color: var(--muted); font-size: 11px; }
 #cond-strip textarea {
-  width: 100%; height: 54px; resize: vertical;
+  width: 100%; height: 54px; margin-top: 5px; resize: vertical;
   font-family: ui-monospace, "Cascadia Code", monospace; font-size: 12px;
 }
 

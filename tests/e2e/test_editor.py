@@ -18,6 +18,33 @@ def test_monaco_outline_search_and_save(app_page):
     assert download.value.suggested_filename.endswith(".md")
 
 
+def test_live_preview_keeps_cursor_and_editor_scroll(app_page):
+    app_page.evaluate("""
+      () => {
+        editor.setValue(Array.from({length: 240}, (_, i) => `line ${i + 1}`).join('\\n'));
+        editor.setPosition({lineNumber: 180, column: 5});
+        editor.revealLineInCenter(180);
+      }
+    """)
+    app_page.wait_for_timeout(500)
+    before = app_page.evaluate("editor.getScrollTop()")
+    app_page.evaluate("""
+      () => editor.executeEdits('e2e', [{range: new monaco.Range(180, 5, 180, 5), text: 'x'}])
+    """)
+    app_page.wait_for_timeout(800)
+    after = app_page.evaluate("editor.getScrollTop()")
+    assert app_page.evaluate("editor.getPosition().lineNumber") == 180
+    assert abs(after - before) < 20
+
+
+def test_quick_preset_picker_visualizes_route(app_page):
+    expect(app_page.locator("#preset-buttons")).to_contain_text("管理者・正常")
+    app_page.locator("#preset-buttons .preset-chip", has_text="一般・正常").click()
+    expect(app_page.locator("#status-preset")).to_have_text("プリセット: 一般・正常")
+    expect(app_page.locator("#preset-buttons .preset-chip.active")).to_have_text("一般・正常")
+    expect(app_page.locator("#condition-advanced")).not_to_have_attribute("open", "")
+
+
 def test_dirty_state_and_crash_recovery(app_page):
     app_page.evaluate("editor.setValue('# Unsaved recovery')")
     expect(app_page.locator("#file-name")).to_have_class(re.compile(r"dirty"))
