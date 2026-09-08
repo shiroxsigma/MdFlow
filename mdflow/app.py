@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import base64
 import os
+import shutil
 import tempfile
 from pathlib import Path
 
 from fastapi import UploadFile
+from starlette.background import BackgroundTask
 from fastapi.responses import FileResponse, StreamingResponse
 from nicegui import app, ui
 
@@ -107,17 +109,25 @@ def export_ppt(payload: dict) -> FileResponse:
     png = work / "diagram.png"
     png.write_bytes(base64.b64decode(payload.get("png_dataurl", "").split(",", 1)[-1]))
     output = work / f"{diagram_id}.pptx"
-    pptx_io.export_ppt(result, png, output, title=diagram_id)
+    try:
+        pptx_io.export_ppt(result, png, output, title=diagram_id)
+    except Exception:
+        shutil.rmtree(work, ignore_errors=True)
+        raise
     return FileResponse(output, filename=output.name,
-                        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation")
+                        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                        background=BackgroundTask(shutil.rmtree, work, ignore_errors=True))
 
 
 @app.post("/api/import")
 async def import_ppt(file: UploadFile) -> dict:
     work = Path(tempfile.mkdtemp(prefix="mdflow_"))
-    source = work / (file.filename or "import.pptx")
-    source.write_bytes(await file.read())
-    return webapi.import_result_to_dict(pptx_io.import_ppt(source))
+    try:
+        source = work / Path(file.filename or "import.pptx").name
+        source.write_bytes(await file.read())
+        return webapi.import_result_to_dict(pptx_io.import_ppt(source))
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
 
 
 @ui.page("/")
