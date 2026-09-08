@@ -10,7 +10,8 @@ let llmDiffModels = [];
 let llmValidationTimer = null;
 const state = { md: "", selectedId: "", preset: "", diagrams: [], zoom: 1, renderId: 0,
   llmSelection: null, llmMode: "ask", syncingScroll: false, fileHandle: null,
-  lastSaved: "", lastModified: 0, recoveryTimer: null, autoSaveTimer: null };
+  directoryHandle: null, activeExplorerPath: "", lastSaved: "", lastModified: 0,
+  recoveryTimer: null, autoSaveTimer: null };
 
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) =>
@@ -387,11 +388,12 @@ async function exportAll(path, filename) {
 }
 
 const COMMANDS = [
-  ["ファイルを開く", onOpen], ["保存", onSave], ["名前を付けて保存", onSaveAs],
+  ["フォルダーを開く", openExplorerFolder], ["ファイルを開く", onOpen], ["保存", onSave], ["名前を付けて保存", onSaveAs],
   ["Local LLMを開く", openLlm], ["選択図をSVGコピー", copySvg], ["選択図をPNGコピー", copyPng],
   ["選択図をSVG保存", saveDiagram], ["全図をZIP出力", () => exportAll("/api/export/bundle", "mdflow-diagrams.zip")],
   ["全図をPPT出力", () => exportAll("/api/export/ppt-multi", "mdflow-diagrams.pptx")],
-  ["PDF印刷", () => window.print()], ["図テンプレートを挿入", () => $("diagram-template").focus()],
+  ["Mermaidの全経路を自動生成", generateAllPaths], ["PDF印刷", () => window.print()],
+  ["図テンプレートを挿入", () => $("diagram-template").focus()],
 ];
 
 function openCommandPalette() {
@@ -448,6 +450,69 @@ async function onOpen() {
     await render(); toast("Markdownを開きました");
   }
 }
+
+async function openExplorerFolder() {
+  if (!window.showDirectoryPicker) { toast("このブラウザはフォルダー表示に対応していません"); return; }
+  try {
+    const handle = await window.showDirectoryPicker({ mode: "readwrite" });
+    state.directoryHandle = handle;
+    const db = await fileDb();
+    db.transaction("handles", "readwrite").objectStore("handles").put(handle, "__workspace__");
+    await refreshExplorer();
+  } catch (e) { if (e.name !== "AbortError") toast("フォルダーを開けません: " + e.message); }
+}
+
+async function restoreExplorerFolder() {
+  try {
+    const db = await fileDb();
+    const request = db.transaction("handles").objectStore("handles").get("__workspace__");
+    request.onsuccess = async () => {
+      const handle = request.result;
+      if (handle && await handle.queryPermission({ mode: "read" }) === "granted") {
+        state.directoryHandle = handle; await refreshExplorer();
+      }
+    };
+  } catch (_) { /* IndexedDBまたは権限が利用できない場合は未選択表示を維持 */ }
+}
+
+async function refreshExplorer() {
+  const root = $("explorer-tree"); root.innerHTML = "";
+  if (!state.directoryHandle) { root.innerHTML = '<div class="explorer-empty">📁 を押して作業フォルダーを選択</div>'; return; }
+  if (!await ensureFilePermission(state.directoryHandle, false)) { toast("フォルダーの読み取りが許可されませんでした"); return; }
+  $("explorer-name").textContent = state.directoryHandle.name;
+  await appendDirectoryEntries(state.directoryHandle, root, "", 0);
+  if (!root.children.length) root.innerHTML = '<div class="explorer-empty">フォルダーは空です</div>';
+}
+
+async function appendDirectoryEntries(handle, host, parentPath, depth) {
+  const entries = [];
+  for await (const entry of handle.values()) entries.push(entry);
+  entries.sort((a, b) => (a.kind === b.kind ? a.name.localeCompare(b.name, "ja") : a.kind === "directory" ? -1 : 1));
+  for (const entry of entries) {
+    const path = parentPath ? `${parentPath}/${entry.name}` : entry.name;
+    if (entry.kind === "directory") {
+      const container = document.createElement("div"); container.className = "explorer-directory";
+      const button = explorerButton(entry.name, "▸", depth); const children = document.createElement("div"); children.className = "explorer-children";
+      let loaded = false;
+      button.onclick = async () => { container.classList.toggle("open"); button.querySelector(".twisty").textContent = container.classList.contains("open") ? "▾" : "▸";
+        if (!loaded) { loaded = true; await appendDirectoryEntries(entry, children, path, depth + 1); } };
+      container.append(button, children); host.appendChild(container);
+    } else {
+      const supported = /\.(md|markdown|txt)$/i.test(entry.name);
+      const button = explorerButton(entry.name, "", depth); button.dataset.path = path;
+      if (!supported) { button.classList.add("unsupported"); button.title = "Markdown／テキストファイルのみ編集できます"; }
+      else button.onclick = () => loadFileHandle(entry, `${state.directoryHandle.name}/${path}`).catch((e) => toast(e.message));
+      host.appendChild(button);
+    }
+  }
+}
+
+function explorerButton(name, twisty, depth) {
+  const button = document.createElement("button"); button.className = "explorer-item"; button.style.paddingLeft = `${7 + depth * 13}px`;
+  const marker = document.createElement("span"); marker.className = "twisty"; marker.textContent = twisty;
+  const label = document.createElement("span"); label.className = "entry-name"; label.textContent = name;
+  button.append(marker, label); return button;
+}
 async function onSave() {
   if (state.fileHandle) {
     try { await writeFileHandle(); toast("Markdownを上書き保存しました"); return; }
@@ -481,10 +546,13 @@ function markSaved() {
   state.lastSaved = editorText(); $("file-name").classList.remove("dirty"); localStorage.removeItem("mdflow.recovery");
 }
 
-async function loadFileHandle(handle) {
+async function loadFileHandle(handle, displayPath = handle.name) {
   if (!await ensureFilePermission(handle, false)) throw new Error("ファイルの読み取りが許可されませんでした");
   const file = await handle.getFile(); state.fileHandle = handle; state.lastModified = file.lastModified;
-  setEditorText(await file.text()); $("file-name").textContent = handle.name; markSaved(); await rememberFile(handle); await render(); toast("Markdownを開きました");
+  setEditorText(await file.text()); $("file-name").textContent = displayPath; state.activeExplorerPath = displayPath.replace(/^[^/]+\//, "");
+  document.querySelectorAll(".explorer-item.active").forEach((item) => item.classList.remove("active"));
+  document.querySelector(`.explorer-item[data-path="${CSS.escape(state.activeExplorerPath)}"]`)?.classList.add("active");
+  markSaved(); await rememberFile(handle); await render(); toast("Markdownを開きました");
 }
 
 async function writeFileHandle() {
@@ -595,6 +663,25 @@ function openCondModal() {
   $("cond-name").focus();
 }
 function closeCondModal() { $("modal-backdrop").classList.add("hidden"); }
+
+async function generateAllPaths() {
+  const diagram = state.diagrams.find((item) => item.id === state.selectedId);
+  if (!diagram) { toast("Mermaid flowchartを選択してください"); return; }
+  try {
+    const result = await api("/api/preset/all-paths", {
+      md: editorText(), diagram_id: state.selectedId, limit: 100,
+    });
+    if (result.error) { toast(result.error); return; }
+    const preview = (result.paths || []).slice(0, 8).map((path, index) =>
+      `${index + 1}. ${path.join(" → ")}`).join("\n");
+    const suffix = result.count > 8 ? `\n…ほか${result.count - 8}件` : "";
+    if (!confirm(`${result.count}件の全経路プリセットを生成します。\n\n${preview}${suffix}`)) return;
+    setEditorText(result.md);
+    await render();
+    const warning = (result.warnings || []).join(" / ");
+    toast(`${result.count}件の経路を生成しました${warning ? `（${warning}）` : ""}`);
+  } catch (e) { toast("全経路の生成に失敗しました: " + e.message); }
+}
 
 async function openLlm() {
   state.llmSelection = editor ? editor.getSelection() : null;
@@ -798,7 +885,8 @@ function initDivider() {
   window.addEventListener("mousemove", (e) => {
     if (!dragging) return;
     const r = main.getBoundingClientRect();
-    const ratio = Math.min(0.8, Math.max(0.2, (e.clientX - r.left) / r.width));
+    const explorerRight = $("file-explorer").getBoundingClientRect().right;
+    const ratio = Math.min(0.8, Math.max(0.2, (e.clientX - explorerRight) / Math.max(1, r.right - explorerRight)));
     left.style.flex = `1 1 ${ratio * 100}%`;
   });
 }
@@ -810,6 +898,9 @@ function wire() {
   $("btn-export").onclick = onExport;
   $("btn-import").onclick = onImport;
   $("btn-add-cond").onclick = openCondModal;
+  $("btn-generate-paths").onclick = generateAllPaths;
+  $("btn-open-folder").onclick = openExplorerFolder;
+  $("btn-refresh-folder").onclick = refreshExplorer;
   $("btn-insert-template").onclick = insertDiagramTemplate;
   $("btn-llm").onclick = openLlm;
   $("btn-command").onclick = openCommandPalette;
@@ -862,6 +953,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   initRenderers();
   wire();
   refreshRecentFiles(); $("auto-save").checked = localStorage.getItem("mdflow.autosave") === "1";
+  restoreExplorerFolder();
   api("/api/initial").then(async (initial) => {
     $("app-version").textContent = `v${initial.version || ""}`;
     await initEditor(initial.text || "");

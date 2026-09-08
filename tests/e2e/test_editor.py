@@ -37,6 +37,45 @@ def test_diagram_template_insertion(app_page):
     assert "@startuml sequence-name" in app_page.evaluate("editor.getValue()")
 
 
+def test_file_explorer_renders_selected_directory(app_page):
+    expect(app_page.locator("#file-explorer")).to_be_visible()
+    app_page.evaluate("""
+      async () => {
+        const markdown = {kind: 'file', name: 'flow.md'};
+        const nested = {kind: 'directory', name: 'docs', async *values() {
+          yield {kind: 'file', name: 'readme.md'};
+        }};
+        state.directoryHandle = {name: 'project', async queryPermission() { return 'granted'; },
+          async *values() { yield nested; yield markdown; }};
+        await refreshExplorer();
+      }
+    """)
+    expect(app_page.locator("#explorer-name")).to_have_text("project")
+    expect(app_page.locator("#explorer-tree")).to_contain_text("docs")
+    expect(app_page.locator("#explorer-tree")).to_contain_text("flow.md")
+
+
+def test_generate_all_mermaid_paths(app_page):
+    app_page.on("dialog", lambda dialog: dialog.accept())
+    app_page.evaluate(r"""editor.setValue(`\n\`\`\`mermaid
+%% id: all-routes
+flowchart TD
+  A[Start] --> B{Choice}
+  B -->|Yes| C[Done]
+  B -->|No| D[Denied]
+  C --> E[End]
+  D --> E
+\`\`\``)""")
+    app_page.locator("#sel-diagram option[value='all-routes']").wait_for(state="attached", timeout=10_000)
+    app_page.locator("details.toolbar-menu").nth(1).locator("summary").click()
+    app_page.locator("#sel-diagram").select_option("all-routes")
+    app_page.locator("#btn-generate-paths").click()
+    app_page.wait_for_function("editor.getValue().includes('自動経路 01')")
+    text = app_page.evaluate("editor.getValue()")
+    assert "A → B → C → E" in text
+    assert "A → B → D → E" in text
+
+
 def test_command_palette(app_page):
     app_page.keyboard.press("Control+Shift+p")
     expect(app_page.locator("#command-palette")).to_be_visible()

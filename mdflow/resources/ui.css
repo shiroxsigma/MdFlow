@@ -88,6 +88,20 @@ button.accent {
 
 /* ---- main split ---- */
 #main { flex: 1; display: flex; min-height: 0; }
+#file-explorer { width: 218px; flex: 0 0 218px; min-width: 150px; overflow: hidden; display: flex; flex-direction: column; background: #20202d; border-right: 1px solid var(--border); }
+.explorer-head { height: 33px; flex: 0 0 auto; display: flex; align-items: center; gap: 3px; padding: 5px 7px 5px 10px; color: var(--muted); font-size: 10px; letter-spacing: .08em; }
+.explorer-head .spacer { flex: 1; }
+.explorer-head button { padding: 1px 5px; border: 0; background: transparent; font-size: 13px; }
+#explorer-name { padding: 5px 9px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#explorer-tree { flex: 1; min-height: 0; overflow: auto; padding: 4px 0; }
+.explorer-empty { padding: 12px 10px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.explorer-item { width: 100%; display: flex; align-items: center; gap: 5px; padding: 3px 7px; border: 0; border-radius: 0; background: transparent; text-align: left; white-space: nowrap; overflow: hidden; }
+.explorer-item:hover, .explorer-item.active { background: var(--bg3); color: var(--accent2); }
+.explorer-item.unsupported { opacity: .52; cursor: default; }
+.explorer-item .twisty { width: 10px; flex: 0 0 10px; color: var(--muted); }
+.explorer-item .entry-name { overflow: hidden; text-overflow: ellipsis; }
+.explorer-children { display: none; }
+.explorer-directory.open > .explorer-children { display: block; }
 #left { flex: 1 1 52%; display: flex; flex-direction: column; min-width: 0; border-right: 1px solid var(--border); }
 #divider { flex: 0 0 5px; background: var(--border); cursor: col-resize; }
 #divider:hover { background: var(--accent); }
@@ -234,6 +248,7 @@ button.danger { color: #fff; background: var(--danger); border: 0; }
 .monaco-editor .mermaid-code-line { color: #5ad1c9 !important; }
 
 @media (max-width: 1000px) {
+  #file-explorer { width: 170px; flex-basis: 170px; }
   #outline { width: 138px; flex-basis: 138px; }
   .brand small, #btn-add-cond { display: none; }
 }
