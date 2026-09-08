@@ -30,7 +30,7 @@ jobs:
             Write-Output "::error title=Unit test details::$details"
             exit $exitCode
           }
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
           name: unit-test-results
@@ -52,7 +52,7 @@ jobs:
       - run: python scripts/fetch_monaco.py
       - run: python -m playwright install --with-deps chromium
       - run: python -m pytest tests/e2e -q --browser chromium --tracing retain-on-failure
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
           name: playwright-traces
