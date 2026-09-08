@@ -440,9 +440,12 @@ async function openLlm() {
   $("llm-url").value = saved.url || "http://127.0.0.1:1234/v1";
   $("llm-timeout").value = saved.timeout || 120;
   $("llm-purpose").value = saved.purpose || "quick";
+  $("llm-policy").value = saved.policy || "all";
   $("llm-scope").value = selected ? "selection" : "section";
   $("llm-scope").querySelector('option[value="selection"]').disabled = !selected;
   $("llm-result").classList.add("hidden");
+  $("llm-history").classList.add("hidden");
+  $("llm-confirm").checked = false; $("llm-apply").disabled = true;
   $("llm-backdrop").classList.remove("hidden");
   $("llm-instruction").focus();
   updateLlmScope();
@@ -452,6 +455,7 @@ async function openLlm() {
 function llmSettings() {
   return { provider: $("llm-provider").value, url: $("llm-url").value.trim(),
     timeout: Number($("llm-timeout").value) || 120, purpose: $("llm-purpose").value,
+    policy: $("llm-policy").value,
     roles: JSON.parse(localStorage.getItem("mdflow.llm.roles") || "{}") };
 }
 
@@ -487,6 +491,11 @@ function llmTarget() {
 }
 
 function updateLlmScope() {
+  if ($("llm-scope").value === "smart") {
+    $("llm-scope-label").textContent = "質問に関連する見出しをローカル検索";
+    $("llm-token-estimate").textContent = "依頼入力後に計算";
+    return;
+  }
   const target = llmTarget(); state.llmTargetRange = target.range;
   $("llm-scope-label").textContent = `${target.label}（${target.text.length.toLocaleString()}文字）`;
   $("llm-token-estimate").textContent = `約${Math.ceil(target.text.length / 3).toLocaleString()} tokens`;
@@ -495,7 +504,15 @@ function updateLlmScope() {
 async function runLlm(mode) {
   const instruction = $("llm-instruction").value.trim();
   if (!instruction) { toast("依頼または質問を入力してください"); return; }
-  const settings = llmSettings(); const target = llmTarget(); state.llmTargetRange = target.range;
+  const settings = llmSettings(); let target = llmTarget();
+  if ($("llm-scope").value === "smart") {
+    if (mode === "edit") { toast("関連検索は質問用です。編集範囲を選択してください"); return; }
+    const relevant = await api("/api/llm/context", { md: editorText(), query: instruction });
+    target = { text: relevant.text, range: null, label: relevant.chunks.map((item) => item.title).join(" / ") };
+    $("llm-scope-label").textContent = `関連箇所: ${target.label}`;
+    $("llm-token-estimate").textContent = `約${Math.ceil(target.text.length / 3).toLocaleString()} tokens`;
+  }
+  state.llmTargetRange = target.range;
   localStorage.setItem("mdflow.llm", JSON.stringify(settings));
   settings.roles[settings.purpose] = $("llm-model").value;
   localStorage.setItem("mdflow.llm.roles", JSON.stringify(settings.roles));
@@ -512,8 +529,14 @@ async function runLlm(mode) {
     const errorMarker = "\x1eMDFLOW_ERROR:", errorAt = answer.indexOf(errorMarker);
     if (errorAt >= 0) throw new Error(answer.slice(errorAt + errorMarker.length));
     state.llmAnswer = stripOuterFence(answer.trim());
+    if (mode === "edit") {
+      const repaired = await api("/api/llm/repair", { original: target.text, candidate: state.llmAnswer, policy: settings.policy });
+      state.llmAnswer = repaired.text;
+      $("llm-repair-note").textContent = repaired.warnings?.length ? `自動保護: ${repaired.warnings.join(" / ")}` : "";
+    }
     $("llm-answer").textContent = state.llmAnswer;
-    if (mode === "edit") { showLlmDiff(target.text, state.llmAnswer); await validateLlmEdit(); $("llm-apply-actions").classList.remove("hidden"); }
+    if (mode === "edit") { showLlmDiff(target.text, state.llmAnswer); await validateLlmEdit(); $("llm-confirm").checked = false;
+      $("llm-apply").disabled = true; $("llm-apply-actions").classList.remove("hidden"); }
   } catch (e) { $("llm-answer").classList.remove("hidden"); $("llm-answer").textContent = e.name === "AbortError" ? "生成を停止しました。" : e.message; }
   finally { clearTimeout(timer); llmAbort = null; $("llm-stop").classList.add("hidden"); }
 }
@@ -555,14 +578,34 @@ async function validateLlmEdit() {
 }
 
 function applyLlmEdit() {
+  if (!$("llm-confirm").checked) { toast("差分と検証結果の確認が必要です"); return; }
   const value = llmDiffModels[1] ? llmDiffModels[1].getValue() : state.llmAnswer;
+  const beforeDocument = editorText();
   if (!editor) { setEditorText(value); }
   else {
     const range = state.llmTargetRange || editor.getModel().getFullModelRange();
     editor.pushUndoStop(); editor.executeEdits("local-llm", [{ range, text: value, forceMoveMarkers: true }]);
     editor.pushUndoStop(); editor.focus();
   }
+  saveLlmSnapshot(beforeDocument, editorText());
   $("llm-backdrop").classList.add("hidden"); toast("編集案を適用しました（Undoできます）");
+}
+
+function saveLlmSnapshot(before, after) {
+  const history = JSON.parse(localStorage.getItem("mdflow.llm.history") || "[]");
+  history.unshift({ at: new Date().toISOString(), instruction: $("llm-instruction").value, before, after });
+  localStorage.setItem("mdflow.llm.history", JSON.stringify(history.slice(0, 10)));
+}
+
+function showLlmHistory() {
+  const history = JSON.parse(localStorage.getItem("mdflow.llm.history") || "[]");
+  const host = $("llm-history-items"); host.innerHTML = ""; $("llm-history").classList.remove("hidden");
+  history.forEach((item, index) => { const row = document.createElement("div"); row.className = "history-item";
+    const text = document.createElement("div"); text.innerHTML = `<div>${escapeHtml(item.instruction || "LLM編集")}</div><small>${new Date(item.at).toLocaleString()}</small>`;
+    const restore = document.createElement("button"); restore.textContent = "復元"; restore.onclick = () => {
+      saveLlmSnapshot(editorText(), item.before); setEditorText(item.before); toast("編集前スナップショットを復元しました"); };
+    row.append(text, restore); host.appendChild(row); });
+  if (!history.length) host.textContent = "履歴はありません。";
 }
 
 async function submitCond() {
@@ -613,6 +656,8 @@ function wire() {
   $("llm-provider").onchange = () => { $("llm-url").value = $("llm-provider").value === "ollama" ? "http://127.0.0.1:11434" : "http://127.0.0.1:1234/v1"; };
   $("llm-purpose").onchange = () => { const roles = JSON.parse(localStorage.getItem("mdflow.llm.roles") || "{}"); const model = roles[$("llm-purpose").value]; if (model && [...$("llm-model").options].some((o) => o.value === model)) $("llm-model").value = model; updateLlmScope(); };
   $("llm-scope").onchange = updateLlmScope;
+  $("llm-history-open").onclick = showLlmHistory;
+  $("llm-confirm").onchange = () => { $("llm-apply").disabled = !$("llm-confirm").checked; };
   $("llm-stop").onclick = () => { if (llmAbort) llmAbort.abort(); };
   $("llm-ask").onclick = () => runLlm("ask");
   $("llm-edit").onclick = () => runLlm("edit");

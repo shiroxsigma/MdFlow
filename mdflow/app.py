@@ -12,7 +12,7 @@ from starlette.background import BackgroundTask
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from nicegui import app, ui
 
-from . import local_llm, plantuml, pptx_io, webapi
+from . import edit_safety, llm_context, local_llm, plantuml, pptx_io, webapi
 
 _RES = Path(__file__).parent / "resources"
 _SAMPLE = Path(__file__).parents[1] / "samples" / "login.md"
@@ -91,6 +91,22 @@ def llm_stream(payload: dict) -> StreamingResponse:
         except (local_llm.LocalLlmError, ValueError) as exc:
             yield f"\n\x1eMDFLOW_ERROR:{exc}"
     return StreamingResponse(generate(), media_type="text/plain; charset=utf-8")
+
+
+@app.post("/api/llm/context")
+def llm_relevant_context(payload: dict) -> dict:
+    found = llm_context.retrieve(payload.get("md", ""), payload.get("query", ""))
+    return {"text": "\n\n".join(item.text for item in found),
+            "chunks": [{"title": item.title, "line": item.start_line,
+                        "score": item.score} for item in found]}
+
+
+@app.post("/api/llm/repair")
+def llm_repair(payload: dict) -> dict:
+    text, warnings = edit_safety.repair(payload.get("original", ""),
+                                        payload.get("candidate", ""),
+                                        payload.get("policy", "all"))
+    return {"text": text, "warnings": warnings}
 
 
 @app.post("/api/preset")

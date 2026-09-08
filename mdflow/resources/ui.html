@@ -67,14 +67,16 @@
       </div></details>
       <div class="llm-row"><label class="ctl">用途</label><select id="llm-purpose"><option value="quick">文章修正・補完</option><option value="diagram">図の生成・修正</option><option value="review">設計レビュー</option></select>
       <label class="ctl">モデル</label><select id="llm-model"></select>
-      <label class="ctl">範囲</label><select id="llm-scope"><option value="selection">選択範囲</option><option value="section">現在の見出し</option><option value="document">文書全体</option></select></div>
+      <label class="ctl">範囲</label><select id="llm-scope"><option value="selection">選択範囲</option><option value="section">現在の見出し</option><option value="smart">関連箇所を検索</option><option value="document">文書全体</option></select></div>
+      <div class="llm-row compact"><label class="ctl">編集制限</label><select id="llm-policy"><option value="all">文章と図</option><option value="text">文章のみ（図を保護）</option><option value="diagram">図のみ（文章を保護）</option></select><button id="llm-history-open">変更履歴</button></div>
       <label class="ctl">依頼・質問</label>
       <textarea id="llm-instruction" placeholder="例: このシーケンス図を簡潔にして / この分岐が必要な理由は？"></textarea>
       <div class="llm-scope"><span id="llm-scope-label">文書全体を使用</span> · <span id="llm-token-estimate">約0 tokens</span></div>
       <div class="modal-actions"><button id="llm-close">閉じる</button><button id="llm-stop" class="danger hidden">生成停止</button><button id="llm-ask">理由を聞く</button><button id="llm-edit" class="accent">編集案を作る</button></div>
       <div id="llm-result" class="hidden"><div class="outline-title">回答 / 編集案 <span id="llm-validation"></span></div><pre id="llm-answer"></pre><div id="llm-diff" class="hidden"></div>
-        <div id="llm-apply-actions" class="modal-actions hidden"><button id="llm-apply" class="primary">編集案を適用</button></div>
+        <div id="llm-repair-note" class="muted"></div><div id="llm-apply-actions" class="modal-actions hidden"><label class="confirm-apply"><input id="llm-confirm" type="checkbox">差分と検証結果を確認しました</label><button id="llm-apply" class="primary" disabled>編集案を適用</button></div>
       </div>
+      <div id="llm-history" class="hidden"><div class="outline-title">変更履歴</div><div id="llm-history-items"></div></div>
     </section>
   </div>
 

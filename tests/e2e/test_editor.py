@@ -54,3 +54,20 @@ def test_llm_diff_and_stop(app_page):
     expect(app_page.locator("#llm-stop")).to_be_visible()
     app_page.locator("#llm-stop").click()
     expect(app_page.locator("#llm-answer")).to_contain_text("生成を停止しました")
+
+
+def test_llm_requires_confirmation_and_saves_history(app_page):
+    app_page.route(re.compile(r".*/api/llm/models"), lambda route: route.fulfill(
+        status=200, content_type="application/json", body='{"available":true,"models":["e2e-model"]}'))
+    app_page.route(re.compile(r".*/api/llm/stream"), lambda route: route.fulfill(
+        status=200, content_type="text/plain", body="# Safer document\n\nReviewed"))
+    app_page.evaluate("editor.setValue('# Original\\n\\nText')")
+    app_page.locator("#btn-llm").click()
+    app_page.locator("#llm-scope").select_option("document")
+    app_page.locator("#llm-instruction").fill("Review safely")
+    app_page.locator("#llm-edit").click()
+    expect(app_page.locator("#llm-apply")).to_be_disabled()
+    app_page.locator("#llm-confirm").check()
+    app_page.locator("#llm-apply").click()
+    expect(app_page.locator("#preview")).to_contain_text("Safer document")
+    assert app_page.evaluate("JSON.parse(localStorage.getItem('mdflow.llm.history')).length") == 1
