@@ -8,8 +8,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from mdflow.document import Document  # noqa: E402
 from mdflow import pptx_io  # noqa: E402
+from mdflow.document import Document  # noqa: E402
 
 SAMPLE = (Path(__file__).resolve().parents[1] / "samples" / "login.md").read_text(
     encoding="utf-8"
@@ -90,7 +90,6 @@ def test_alt_text_carries_marker(tmp_path, png):
 
 def test_corrupted_custom_part_raises(tmp_path, png):
     """カスタムパートが壊れた base64 のとき decode で検知できる."""
-    from mdflow import payload as pmod
 
     doc = Document(SAMPLE)
     payload = doc.build_payload("flow-login")

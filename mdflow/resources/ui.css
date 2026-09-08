@@ -42,7 +42,21 @@ body {
 .file-name.dirty::after { content: " ●"; color: var(--warn); }
 .autosave { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 11px; white-space: nowrap; }
 #recent-files { max-width: 160px; }
+.toolbar-menu { position: relative; }
+.toolbar-menu > summary { list-style: none; cursor: pointer; padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px; }
+.toolbar-menu > summary:hover { border-color: var(--accent); }
+.toolbar-popover { position: absolute; right: 0; top: 35px; z-index: 180; min-width: 220px; padding: 10px; display: grid; gap: 7px; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 10px 30px #0008; }
+.toolbar-popover.wide { min-width: 310px; grid-template-columns: auto 1fr; align-items: center; }
+.toolbar-popover.wide button { grid-column: span 2; }
 #recovery-banner { position: fixed; top: 50px; left: 50%; transform: translateX(-50%); z-index: 190; padding: 9px 12px; background: var(--bg3); border: 1px solid var(--warn); border-radius: 8px; box-shadow: 0 5px 20px #0008; }
+#command-backdrop { position: fixed; inset: 0; z-index: 260; background: rgba(0,0,0,.45); display: flex; justify-content: center; align-items: flex-start; padding-top: 12vh; }
+#command-palette { width: min(560px, 90vw); max-height: 60vh; overflow: hidden; background: var(--bg2); border: 1px solid var(--accent); border-radius: 10px; box-shadow: 0 16px 50px #000a; }
+#command-query { width: 100%; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; padding: 12px; font-size: 14px; }
+#command-items { max-height: 48vh; overflow: auto; }
+.command-item { width: 100%; text-align: left; border: 0; border-radius: 0; padding: 8px 12px; background: transparent; }
+.command-item:hover, .command-item.active { background: var(--bg3); color: var(--accent2); }
+#diagram-context { position: fixed; z-index: 250; min-width: 140px; padding: 5px; background: var(--bg2); border: 1px solid var(--border); border-radius: 7px; box-shadow: 0 8px 24px #0009; }
+#diagram-context button { display: block; width: 100%; border: 0; text-align: left; background: transparent; }
 
 label.ctl { color: var(--muted); font-size: 12px; }
 select, input, button, textarea {

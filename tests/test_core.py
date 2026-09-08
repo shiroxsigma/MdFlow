@@ -6,9 +6,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from mdflow import mapping, mermaid, frontmatter  # noqa: E402
+from mdflow import frontmatter, mapping, mermaid  # noqa: E402
 from mdflow.document import Document  # noqa: E402
-from mdflow.payload import Payload, encode, decode, mermaid_hash  # noqa: E402
+from mdflow.payload import Payload, decode, encode  # noqa: E402
 
 SAMPLE = (Path(__file__).resolve().parents[1] / "samples" / "login.md").read_text(
     encoding="utf-8"

@@ -1,199 +1,164 @@
 # MdFlow
 
-Word/Excel/PPT に散らばる仕様書を **Markdown に統一**し、埋め込んだ **Mermaid フローチャートを
-条件に応じて動的にハイライト**するローカルデスクトップアプリ。
-さらに **PPT へのスマート出力／PPT からの完全復元**（双方向）を備える。
+Markdown、Mermaid、PlantUML、PowerPoint、ローカルLLMを一つの画面で扱うローカルWebアプリです。
+Monaco Editorで仕様書を編集し、図を即時プレビューして、SVG・PNG・ZIP・PPTへ出力できます。
 
-## 設計（採用した推奨構成）
+## 主な機能
 
-| 項目 | 決定 | 理由 |
-|---|---|---|
-| UI | **QWebEngine + QWebChannel の単一ページWeb UI**（サーバ不要）。NoteWithPixie 風ダークテーマ（`#1e1e2a`/アクセント`#8b7cff`・`#5ad1c9`）、markdown-it + mermaid をローカル同梱 | ローカルデスクトップ要件を保ちつつ、洗練されたIDE風UIを再現 |
-| 表示 | Mermaid.js（`securityLevel='strict'`, `theme:'dark'`） | 完全ローカル・スクリプト実行を遮断 |
-| 画像化 | 表示は **SVG**、PPT貼付は **PNG grab** | 追加依存ゼロ・Node/Chromium不要 |
-| 条件定義 | 本文中の ` ```mdflow-mapping ` ブロック（図ごと） | 可読・grep可能・差分が見やすい |
-| 選択状態 | **Frontmatter を単一ソースの正**（`conditions.json` は不採用） | 1ファイル自己完結・二重管理のズレを防ぐ |
-| PPT埋込 | **カスタムパート（主）＋ノート（副）＋Alt Text（参考）** の三重化 | 画像差し替えでも消えにくい／PowerPoint保存でも確実 |
-| 整合性 | ペイロードに mermaid の **sha256** を持たせ復元時に照合 | 画像とコードのズレを検知して警告 |
+- Monaco Editorの補完、検索、Undo、アウトライン、コマンドパレット
+- Mermaidの条件別ノードハイライト
+- PlantUMLのローカルSVG描画、診断、ディスクキャッシュ、テンプレート
+- SVG／倍率PNG／PDF印刷／全図ZIP／複数スライドPPT出力
+- PPTに埋めたMarkdown・条件・図コードの復元とhash検証
+- ファイル直接保存、自動保存、最近使ったファイル、外部変更検知、クラッシュ復旧
+- Ollama／LM Studioを使ったストリーミング質問・編集
+- LLM編集のDiff、確認、履歴、文章・図の保護、構文検証、ローカル関連検索
 
-ペイロード形式: `MDFLOW:v1:<base64(gzip(json))>`（grep可能・バージョン識別・決定的出力）。
+アプリは`127.0.0.1`でNiceGUIサーバーを起動し、ブラウザに独立したHTML UIを表示します。
+Markdown、設定、LLMへの接続情報は外部サービスへ送信しません。
 
 ## セットアップ
 
-```bash
-pip install -r requirements.txt
-python scripts/fetch_mermaid.py        # 初回のみ（以降オフライン）
-python scripts/fetch_markdown_it.py    # 初回のみ（以降オフライン）
-python scripts/fetch_monaco.py         # 初回のみ（以降オフライン）
+Python 3.12を推奨します。
+
+```powershell
+python -m venv .venv
+.venv\Scripts\python -m pip install -r requirements.txt
+.venv\Scripts\python scripts/fetch_markdown_it.py
+.venv\Scripts\python scripts/fetch_mermaid.py
+.venv\Scripts\python scripts/fetch_monaco.py
 ```
 
-PlantUML も使用する場合は Java ランタイムをインストールして、JAR を取得します。
-
-```bash
-python scripts/fetch_plantuml.py       # 初回のみ（以降オフライン）
-```
-
-Windows では、Java のインストールも含めて PowerShell からセットアップできます。
+PlantUMLを使う場合はJavaと公式JARも準備します。
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/setup_plantuml_windows.ps1
 ```
 
-このスクリプトは winget で Eclipse Temurin 21 JRE を導入した後、固定バージョンの
-PlantUML JAR を `mdflow/resources/vendor/plantuml/` に取得します。
+このスクリプトはwingetでEclipse Temurin JREを導入し、SHA-256検証済みの固定PlantUML JARを
+`mdflow/resources/vendor/plantuml/`へ配置します。既存の`plantuml`コマンド、または
+`MDFLOW_PLANTUML`／`MDFLOW_PLANTUML_JAR`で指定した実行環境も利用できます。
 
-`plantuml` コマンドが PATH にある場合はそちらを優先します。任意の実行ファイルや
-JAR を使う場合は、それぞれ `MDFLOW_PLANTUML`、`MDFLOW_PLANTUML_JAR` で指定できます。
+## 起動
 
-GUI は PyQt6（`PyQt6 + PyQt6-WebEngine`）または PyQt5（`PyQt5 + PyQtWebEngine`）のどちらでも動く。
-ベンダーJS（mermaid / markdown-it）は `mdflow/resources/vendor/` に配置され、実行中は外部通信しない。
-エディタは現状 textarea ベース（ダークIDE風にスタイル済み・Monaco 差し替え余地あり）。
-
-## 使い方
-
-```bash
-python -m mdflow                    # GUI 起動（左:エディタ / 右:プレビュー＋条件JSON）
+```powershell
+run.bat
 ```
 
-- 図・プリセットをツールバーで切替、または「条件(JSON)」を編集すると即座に再描画。
-- 「PPTへ出力」でコード＋条件を内包した1枚スライドを生成。
-- 「PPT取込」またはウィンドウへ **.pptx をドラッグ＆ドロップ**でコード・条件・ハイライトを復元。
+または次を実行します。
 
-### ヘッドレス CLI（PyQt不要・CI向け）
-
-```bash
-# PPT から復元・検査（hash不一致なら exit 2）
-python -m mdflow.cli import out.pptx
-
-# 画像を指定して PPT 生成
-python -m mdflow.cli export samples/login.md \
-    --diagram flow-login --image fig.png -o out.pptx \
-    --conditions '{"role":"admin","error_count":0}'
+```powershell
+.venv\Scripts\python -m mdflow
 ```
 
-## Markdown の書き方
+既定URLは`http://127.0.0.1:8080`です。`MDFLOW_PORT`でポートを変更できます。
 
-```markdown
-​```mermaid
+## Markdownと図
+
+````markdown
+```mermaid
 %% id: flow-login
 flowchart TD
     A[開始] --> B{認証情報あり?}
-    ...
-​```
+    B -->|Yes| C[メニュー]
+```
 
-​```mdflow-mapping
+```mdflow-mapping
 diagram: flow-login
 presets:
-  管理者・正常:
-    when: 'role == "admin" && error_count == 0'
-    active_nodes: [A, B, C, D, G]
+  管理者:
+    when: 'role == "admin"'
+    active_nodes: [A, B, C]
 style:
   active: 'fill:#ff9999,stroke:#333,stroke-width:2px'
-​```
 ```
 
-PlantUML は `plantuml`（または `puml`）フェンスで記述するとプレビューされます。
-
-```markdown
-​```plantuml
-@startuml
-Alice -> Bob: Hello
-Bob --> Alice: Hi
+```plantuml
+@startuml login-sequence
+Alice -> Server: Login
+Server --> Alice: Result
 @enduml
-​```
 ```
+````
 
-PlantUML の描画はローカルプロセスで行われ、ソースが外部サービスへ送信されることはありません。
-取得スクリプトは固定した公式JARのSHA-256を検証してから配置します。画面下部にはPlantUML、Java、
-Graphvizの診断結果とバージョンを表示します。描画は既定で同時2件までに制限され、結果は
-`%LOCALAPPDATA%/MdFlow/cache/plantuml`へ永続キャッシュされます。同時数とキャッシュ先は
-`MDFLOW_PLANTUML_CONCURRENCY`、`MDFLOW_PLANTUML_CACHE`で変更できます。エディタ上部からsequence、
-class、C4、Mermaid flowchartのテンプレートも挿入できます。
+条件式は`&& || ! == != < <= > >=`に対応し、`eval`を使わないAST評価を行います。
+PlantUMLは外部サーバーを使わず、ローカルプロセスで描画します。
 
-## MonacoエディタとローカルLLM
+## ローカルLLM
 
-編集画面はMonaco Editorを使用し、Markdown、Mermaid、PlantUMLの強調表示と補完、見出し・図の
-アウトライン、検索・置換、Undo、`Ctrl+S`、プレビューとのスクロール同期を提供します。プレビューの
-図はズーム、SVG/PNGコピー、SVG保存ができます。
-
-ローカルLLMは標準でOllama（`http://127.0.0.1:11434`）へ接続します。Windowsでは次のスクリプトで
-Ollamaをインストールできます。モデル名を指定するとモデルも取得します。
+標準でOllamaに対応し、画面の接続設定からLM StudioなどのOpenAI互換APIも選択できます。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/setup_local_llm_windows.ps1 -Model "使用するモデル名"
+powershell -ExecutionPolicy Bypass -File scripts/setup_local_llm_windows.ps1 -Model "モデル名"
 ```
 
-ツールバーの「Local LLM」から、選択範囲または文書全体について理由を質問したり、編集案を生成して
-Undo可能な状態で適用できます。LM StudioなどのOpenAI互換ローカルサーバーを使う場合は次の環境変数を
-設定します。
-
-接続方式・URL・タイムアウトは画面内でも設定でき、ブラウザのローカルストレージへ保存されます。
-用途ごとに選んだモデルも記憶されます。応答はストリーミング表示され、「生成停止」で中断できます。
-編集案はMonaco Diff Editorで比較・調整でき、適用前にコードフェンス、図ID重複、Mermaid、PlantUMLの
-構文を検査します。送信範囲は「選択範囲」「現在の見出し」「文書全体」から選択でき、概算トークン数も
-表示されます。
-
-LLM編集には保護モード（文章のみ／図のみ／両方）があり、図IDと`mdflow-mapping`を決定的な処理で
-復元します。適用には確認チェックが必要で、直前の文書は最大10件の変更履歴としてローカル保存され、
-あとから復元できます。「関連箇所を検索」は文書を見出し単位に分割し、質問との語句・日本語bigramの
-一致度から関連部分だけをローカルで選びます。この検索処理で文書が外部へ送信されることはありません。
+LM Studioの例:
 
 ```powershell
 $env:MDFLOW_LLM_PROVIDER = "openai"
 $env:MDFLOW_LLM_URL = "http://127.0.0.1:1234/v1"
-$env:MDFLOW_LLM_MODEL = "ローカルモデル名"
+$env:MDFLOW_LLM_MODEL = "モデル名"
 ```
 
-- ルール式は `&& || ! == != < <= > >=` に対応（`eval` 不使用の安全な AST 評価）。
-- 未定義の識別子は `None` として扱い、比較は例外にせず False に倒す。
-- ノードIDの実在を検証し、存在しないIDへの指定はプレビューに警告表示。
+設定はブラウザ内に保存され、APIキーをソースや設定ファイルへ書き込みません。質問対象は選択範囲、
+現在の見出し、関連箇所、文書全体から選べます。関連検索は見出し単位の語句・日本語bigram一致を使う
+ローカル処理です。編集案はMonaco Diffで確認し、図IDと`mdflow-mapping`を保護してから適用します。
+
+## ファイルとエクスポート
+
+Chromium系ブラウザではFile System Access APIによる直接上書き、自動保存、最近使ったファイル、
+3秒ごとの外部変更検知を利用できます。未保存内容はブラウザ内へ退避され、次回起動時に復旧できます。
+API非対応ブラウザではダウンロード保存へフォールバックします。
+
+MermaidとPlantUMLの図はSVG、1x～4x PNG、クリップボード、全図ZIP、複数スライドPPTへ出力できます。
+PDFボタンは印刷専用レイアウトを開き、OSのPDF保存を利用します。
+
+## CLI
+
+```powershell
+python -m mdflow.cli import output.pptx
+python -m mdflow.cli export samples/login.md --diagram flow-login --image figure.png -o output.pptx
+```
+
+## テストと開発
+
+```powershell
+.venv\Scripts\python -m pip install -r requirements-dev.txt
+.venv\Scripts\python -m playwright install chromium
+.venv\Scripts\python -m pytest tests -q --browser chromium
+.venv\Scripts\ruff check .
+```
+
+単体・PPT往復テストに加え、Playwright ChromiumでMonaco、検索・保存、アウトライン、復旧、図操作、
+一括出力、LLM Diff・停止・確認を検証します。GitHub Actionsでも単体・静的解析・E2Eを実行します。
+
+## 配布
+
+`v*`タグまたは手動実行で、GitHub ActionsがWindows用`MdFlow.exe`とZIPを生成します。ローカルビルド:
+
+```powershell
+python scripts/fetch_markdown_it.py
+python scripts/fetch_mermaid.py
+python scripts/fetch_monaco.py
+pyinstaller --noconfirm --clean --onefile --name MdFlow --paths . --collect-all nicegui --add-data "mdflow/resources;mdflow/resources" --add-data "samples;samples" scripts/mdflow_launcher.py
+```
 
 ## 構成
 
-```
+```text
 mdflow/
-  payload.py     ペイロードのencode/decode＋hash整合
-  mapping.py     mdflow-mapping パース＋安全なルール評価
-  mermaid.py     ブロック抽出・ノードID解析・非破壊スタイル注入
-  frontmatter.py 選択状態（正）の読み書き
-  document.py    統合ロジック（GUI/CLI/テスト共通・PyQt非依存）
-  webapi.py      フロントに返すJSONを組む純ロジック（PyQt非依存・テスト可能）
-  preview.py     静的HTML生成（サーバレス出力用の補助）
-  pptx_io.py     PPT出力／取込（三重埋め込み・フォールバック）
-  app.py         QWebEngine ホスト（QWebChannel でBridge登録）
-  app_bridge.py  ui.js から呼ばれる QWebChannel スロット群（ダイアログ等の副作用）
-  cli.py         ヘッドレスCLI
-  resources/     ui.html / ui.css / ui.js（Web UI）, vendor/（同梱JS）
-tests/           コア・PPT往復・プレビュー・webapi のテスト（27件）
+  app.py          NiceGUI/FastAPIエンドポイント
+  document.py     Markdown・条件・図の統合ロジック
+  mapping.py      安全な条件評価とプリセット
+  mermaid.py      Mermaid解析とスタイル注入
+  plantuml.py     PlantUML実行、診断、キャッシュ
+  local_llm.py    Ollama／OpenAI互換クライアント
+  llm_context.py  ローカル関連検索
+  edit_safety.py  LLM編集の保護・自動修復
+  pptx_io.py      PowerPoint入出力
+  resources/      MonacoベースのWeb UI
+tests/
+  e2e/            Playwrightブラウザテスト
 ```
 
-## テスト
-
-```bash
-python -m pytest tests/ -q
-```
-
-ブラウザE2EテストはPlaywright Chromiumを使用します。初回のみブラウザを取得してください。
-
-```bash
-python -m playwright install chromium
-python -m pytest tests/e2e -q --browser chromium
-```
-
-E2Eテストでは一時ポートでMdFlowを起動し、Monacoの検索・保存、アウトライン、Mermaidのズーム・
-SVGコピー、ローカルLLMのDiff表示・停止を実ブラウザで検証します。
-
-## 図の出力
-
-MermaidとPlantUMLは共通の図ツールからSVG保存、SVG/PNGコピー、1x～4xのPNG生成を利用できます。
-「全図ZIP」はSVG、PNG、元Markdown、manifestをまとめ、「全図PPT」は図ごとに1枚のスライドを作ります。
-「PDF」は図と本文に最適化した印刷表示を開き、OSのPDF保存機能を使用します。
-
-## ファイル保存と復旧
-
-Chromium系ブラウザではFile System Access APIを使って、開いたMarkdownを同じファイルへ直接上書き
-できます。「名前を付けて保存」、最近使ったファイル、自動保存、未保存マーク、3秒ごとの外部変更検知に
-対応します。未保存内容はブラウザ内へ一時退避され、次回起動時に復元できます。API非対応ブラウザでは
-従来どおりダウンロード保存へフォールバックします。
-
-`md → ppt → md` のラウンドトリップ、ノート系フォールバック、hash改変検知を含む。
+変更内容は[CHANGELOG.md](CHANGELOG.md)を参照してください。

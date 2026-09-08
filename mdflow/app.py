@@ -2,21 +2,21 @@
 from __future__ import annotations
 
 import base64
-import os
-import shutil
-import tempfile
 import io
 import json
+import os
 import re
+import shutil
+import tempfile
 import zipfile
 from pathlib import Path
 
 from fastapi import UploadFile
-from starlette.background import BackgroundTask
 from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
 from nicegui import app, ui
+from starlette.background import BackgroundTask
 
-from . import edit_safety, llm_context, local_llm, plantuml, pptx_io, webapi
+from . import __version__, edit_safety, llm_context, local_llm, plantuml, pptx_io, webapi
 
 _RES = Path(__file__).parent / "resources"
 _SAMPLE = Path(__file__).parents[1] / "samples" / "login.md"
@@ -26,7 +26,7 @@ app.add_static_files("/assets", _RES)
 
 @app.get("/api/initial")
 def initial() -> dict[str, str]:
-    return {"text": _SAMPLE.read_text("utf-8")}
+    return {"text": _SAMPLE.read_text("utf-8"), "version": __version__}
 
 
 @app.post("/api/parse")

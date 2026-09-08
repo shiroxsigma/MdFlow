@@ -7,24 +7,21 @@
 </head>
 <body>
   <div id="topbar">
-    <span class="brand">🗺 MdFlow<small>仕様書・フローチャート統合</small></span>
+    <span class="brand">🗺 MdFlow <span id="app-version"></span><small>仕様書・図・ローカルAI</small></span>
     <span class="file-name" id="file-name">samples/login.md</span>
-    <select id="recent-files" title="最近使ったファイル"><option value="">最近使ったファイル</option></select>
-    <label class="autosave"><input id="auto-save" type="checkbox">自動保存</label>
     <span class="spacer"></span>
-
-    <label class="ctl">図</label>
-    <select id="sel-diagram"></select>
-    <label class="ctl">プリセット</label>
-    <select id="sel-preset"></select>
-
-    <button id="btn-add-cond">＋条件を登録</button>
-    <button id="btn-llm">✦ Local LLM</button>
-    <button id="btn-open">開く</button>
-    <button id="btn-save" class="primary">保存</button>
-    <button id="btn-save-as">名前を付けて保存</button>
-    <button id="btn-export" class="accent">PPTへ出力</button>
-    <button id="btn-import">PPT取込</button>
+    <details class="toolbar-menu"><summary>ファイル</summary><div class="toolbar-popover">
+      <select id="recent-files" title="最近使ったファイル"><option value="">最近使ったファイル</option></select>
+      <label class="autosave"><input id="auto-save" type="checkbox">自動保存</label>
+      <button id="btn-open">開く</button><button id="btn-save" class="primary">保存</button>
+      <button id="btn-save-as">名前を付けて保存</button><button id="btn-import">PPT取込</button>
+    </div></details>
+    <details class="toolbar-menu"><summary>図</summary><div class="toolbar-popover wide">
+      <label class="ctl">図</label><select id="sel-diagram"></select><label class="ctl">プリセット</label><select id="sel-preset"></select>
+      <button id="btn-add-cond">＋条件を登録</button><button id="btn-export" class="accent">選択図をPPTへ</button>
+    </div></details>
+    <button id="btn-llm">✦ AI</button>
+    <button id="btn-command" title="コマンドパレット (Ctrl+Shift+P)">⌘</button>
   </div>
 
   <div id="main">
@@ -61,6 +58,8 @@
   </div>
   <div id="toast"></div>
   <div id="recovery-banner" class="hidden">未保存の編集内容があります。<button id="btn-recover">復元</button><button id="btn-dismiss-recovery">破棄</button></div>
+  <div id="command-backdrop" class="hidden"><div id="command-palette"><input id="command-query" placeholder="コマンドを入力..."><div id="command-items"></div></div></div>
+  <div id="diagram-context" class="hidden"><button data-command="copy-svg">SVGコピー</button><button data-command="copy-png">PNGコピー</button><button data-command="save-diagram">SVG保存</button><button data-command="export-all">全図ZIP</button></div>
 
   <div id="llm-backdrop" class="hidden">
     <section id="llm-panel">

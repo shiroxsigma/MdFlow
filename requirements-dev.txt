@@ -1,0 +1,5 @@
+-r requirements.txt
+pytest>=8.0
+pytest-playwright>=0.7
+ruff>=0.12
+pyinstaller>=6.0

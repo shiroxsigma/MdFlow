@@ -1,0 +1,47 @@
+name: Windows Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - run: python scripts/fetch_markdown_it.py
+      - run: python scripts/fetch_mermaid.py
+      - run: python scripts/fetch_monaco.py
+      - run: pyinstaller --noconfirm --clean --onefile --name MdFlow --paths . --collect-all nicegui --add-data "mdflow/resources;mdflow/resources" --add-data "samples;samples" scripts/mdflow_launcher.py
+      - name: Smoke test packaged application
+        shell: pwsh
+        run: |
+          $env:MDFLOW_SHOW_BROWSER = "0"
+          $env:MDFLOW_PORT = "50991"
+          $process = Start-Process dist/MdFlow.exe -PassThru
+          try {
+            for ($i = 0; $i -lt 60; $i++) {
+              try {
+                $result = Invoke-RestMethod http://127.0.0.1:50991/api/initial -TimeoutSec 1
+                if ($result.version) { exit 0 }
+              } catch { Start-Sleep -Milliseconds 500 }
+            }
+            throw "Packaged MdFlow did not start"
+          } finally {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+          }
+      - run: Compress-Archive -Path dist/MdFlow.exe,README.md,CHANGELOG.md -DestinationPath dist/MdFlow-Windows.zip
+      - uses: actions/upload-artifact@v5
+        with:
+          name: MdFlow-Windows
+          path: dist/MdFlow-Windows.zip
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: dist/MdFlow-Windows.zip

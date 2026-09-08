@@ -37,6 +37,15 @@ def test_diagram_template_insertion(app_page):
     assert "@startuml sequence-name" in app_page.evaluate("editor.getValue()")
 
 
+def test_command_palette(app_page):
+    app_page.keyboard.press("Control+Shift+p")
+    expect(app_page.locator("#command-palette")).to_be_visible()
+    app_page.locator("#command-query").fill("Local LLM")
+    expect(app_page.locator("#command-items")).to_contain_text("Local LLMを開く")
+    app_page.keyboard.press("Enter")
+    expect(app_page.locator("#llm-panel")).to_be_visible()
+
+
 def test_mermaid_zoom_and_svg_copy(app_page, context):
     context.grant_permissions(["clipboard-read", "clipboard-write"], origin=app_page.url)
     app_page.evaluate("editor.setValue('```mermaid\\nflowchart TD\\n A-->B\\n```')")

@@ -6,6 +6,9 @@ venv/
 *.egg-info/
 build/
 dist/
+*.spec
+test-results/
+playwright-report/
 
 # 同梱物（セットアップ時に取得）
 mdflow/resources/vendor/

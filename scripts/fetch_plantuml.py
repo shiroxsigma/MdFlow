@@ -1,7 +1,7 @@
 """Download the pinned PlantUML jar used by MdFlow."""
+import hashlib
 from pathlib import Path
 from urllib.request import urlopen
-import hashlib
 
 VERSION = "1.2026.6"
 URL = f"https://github.com/plantuml/plantuml/releases/download/v{VERSION}/plantuml-{VERSION}.jar"

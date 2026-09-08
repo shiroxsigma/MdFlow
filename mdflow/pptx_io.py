@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Optional
 
 from pptx import Presentation
-from pptx.util import Emu, Inches
+from pptx.util import Emu
 
 from . import payload as _payload
 from .payload import Payload

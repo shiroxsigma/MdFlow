@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from mdflow import webapi, pptx_io  # noqa: E402
+from mdflow import pptx_io, webapi  # noqa: E402
 
 SAMPLE = (Path(__file__).resolve().parents[1] / "samples" / "login.md").read_text("utf-8")
 _PNG = base64.b64decode(

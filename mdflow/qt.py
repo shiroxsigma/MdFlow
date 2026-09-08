@@ -10,15 +10,15 @@ QT_API = None
 
 try:  # PyQt6 優先（Python 3.13 で入りやすい）
     from PyQt6 import QtCore, QtGui, QtWidgets  # type: ignore
-    from PyQt6.QtWebEngineWidgets import QWebEngineView  # type: ignore
-    from PyQt6.QtWebEngineCore import QWebEngineSettings  # type: ignore
     from PyQt6.QtWebChannel import QWebChannel  # type: ignore
+    from PyQt6.QtWebEngineCore import QWebEngineSettings  # type: ignore
+    from PyQt6.QtWebEngineWidgets import QWebEngineView  # type: ignore
     QT_API = "PyQt6"
 except Exception:  # pragma: no cover - 環境依存
     try:
         from PyQt5 import QtCore, QtGui, QtWidgets  # type: ignore
-        from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEngineSettings  # type: ignore
         from PyQt5.QtWebChannel import QWebChannel  # type: ignore
+        from PyQt5.QtWebEngineWidgets import QWebEngineSettings, QWebEngineView  # type: ignore
         QT_API = "PyQt5"
     except Exception as e:  # pragma: no cover
         raise ImportError(

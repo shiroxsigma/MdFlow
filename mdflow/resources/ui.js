@@ -386,6 +386,38 @@ async function exportAll(path, filename) {
   } catch (e) { toast("一括出力失敗: " + e.message); }
 }
 
+const COMMANDS = [
+  ["ファイルを開く", onOpen], ["保存", onSave], ["名前を付けて保存", onSaveAs],
+  ["Local LLMを開く", openLlm], ["選択図をSVGコピー", copySvg], ["選択図をPNGコピー", copyPng],
+  ["選択図をSVG保存", saveDiagram], ["全図をZIP出力", () => exportAll("/api/export/bundle", "mdflow-diagrams.zip")],
+  ["全図をPPT出力", () => exportAll("/api/export/ppt-multi", "mdflow-diagrams.pptx")],
+  ["PDF印刷", () => window.print()], ["図テンプレートを挿入", () => $("diagram-template").focus()],
+];
+
+function openCommandPalette() {
+  $("command-backdrop").classList.remove("hidden"); $("command-query").value = ""; renderCommands(); $("command-query").focus();
+}
+function closeCommandPalette() { $("command-backdrop").classList.add("hidden"); }
+function renderCommands() {
+  const query = $("command-query").value.toLowerCase(); const host = $("command-items"); host.innerHTML = "";
+  COMMANDS.filter(([label]) => label.toLowerCase().includes(query)).forEach(([label, action], index) => {
+    const button = document.createElement("button"); button.className = `command-item${index === 0 ? " active" : ""}`;
+    button.textContent = label; button.onclick = () => { closeCommandPalette(); action(); }; host.appendChild(button);
+  });
+}
+
+function showDiagramContext(event) {
+  const box = event.target.closest(".mermaid-box, .plantuml-box"); if (!box) return;
+  event.preventDefault(); selectPreviewDiagram(event); const menu = $("diagram-context");
+  menu.style.left = `${Math.min(event.clientX, innerWidth - 160)}px`; menu.style.top = `${Math.min(event.clientY, innerHeight - 160)}px`;
+  menu.classList.remove("hidden");
+}
+function runContextCommand(name) {
+  ({ "copy-svg": copySvg, "copy-png": copyPng, "save-diagram": saveDiagram,
+    "export-all": () => exportAll("/api/export/bundle", "mdflow-diagrams.zip") })[name]?.();
+  $("diagram-context").classList.add("hidden");
+}
+
 function syncPreviewFromEditor(scrollTop, scrollHeight) {
   if (state.syncingScroll) return; const preview = $("preview");
   const ratio = scrollTop / Math.max(1, scrollHeight - editor.getLayoutInfo().height);
@@ -780,6 +812,7 @@ function wire() {
   $("btn-add-cond").onclick = openCondModal;
   $("btn-insert-template").onclick = insertDiagramTemplate;
   $("btn-llm").onclick = openLlm;
+  $("btn-command").onclick = openCommandPalette;
   $("btn-zoom-in").onclick = () => changeZoom(.1);
   $("btn-zoom-out").onclick = () => changeZoom(-.1);
   $("btn-copy-svg").onclick = copySvg;
@@ -810,6 +843,15 @@ function wire() {
   $("conditions").addEventListener("input", scheduleRender);
   $("preview").addEventListener("scroll", syncEditorFromPreview);
   $("preview").addEventListener("click", selectPreviewDiagram);
+  $("preview").addEventListener("contextmenu", showDiagramContext);
+  $("diagram-context").querySelectorAll("button").forEach((button) => button.onclick = () => runContextCommand(button.dataset.command));
+  $("command-query").oninput = renderCommands;
+  $("command-query").onkeydown = (event) => { if (event.key === "Enter") $("command-items").querySelector("button")?.click(); if (event.key === "Escape") closeCommandPalette(); };
+  $("command-backdrop").onclick = (event) => { if (event.target === $("command-backdrop")) closeCommandPalette(); };
+  document.addEventListener("click", (event) => { if (!event.target.closest("#diagram-context")) $("diagram-context").classList.add("hidden");
+    document.querySelectorAll(".toolbar-menu[open]").forEach((menu) => { if (!menu.contains(event.target)) menu.removeAttribute("open"); }); });
+  document.addEventListener("keydown", (event) => { if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "p") {
+    event.preventDefault(); openCommandPalette(); } });
   $("sel-diagram").addEventListener("change", () => { state.selectedId = $("sel-diagram").value; render(); });
   $("sel-preset").addEventListener("change", render);
   initDivider();
@@ -821,6 +863,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   wire();
   refreshRecentFiles(); $("auto-save").checked = localStorage.getItem("mdflow.autosave") === "1";
   api("/api/initial").then(async (initial) => {
+    $("app-version").textContent = `v${initial.version || ""}`;
     await initEditor(initial.text || "");
     state.lastSaved = initial.text || "";
     offerRecovery(initial.text || "");

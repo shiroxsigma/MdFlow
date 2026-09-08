@@ -11,8 +11,8 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 
-from .qt import QtCore, QtWidgets
 from . import pptx_io, webapi
+from .qt import QtCore, QtWidgets
 
 pyqtSlot = QtCore.pyqtSlot
 

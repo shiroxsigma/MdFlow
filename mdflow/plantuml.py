@@ -1,11 +1,11 @@
 """Local PlantUML rendering support."""
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 import shutil
 import subprocess
-import hashlib
 import tempfile
 import threading
 from pathlib import Path
