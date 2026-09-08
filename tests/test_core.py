@@ -83,6 +83,31 @@ def test_inject_validates_missing():
     assert res.missing == ["Z"]
 
 
+def test_enumerate_all_flowchart_paths_with_shapes_and_labels():
+    code = """flowchart TD
+ A[Start] --> B{Allowed?}
+ B -->|Yes| C[Dashboard]
+ B -->|No| D[Denied]
+ C --> E[End]
+ D --> E
+"""
+    result = mermaid.enumerate_flow_paths(code)
+    assert result.paths == [["A", "B", "C", "E"], ["A", "B", "D", "E"]]
+    assert result.truncated is False
+    assert result.has_cycle is False
+
+    assert mermaid.flow_edges("flowchart LR\n A -- success --> B") == [("A", "B")]
+
+
+def test_enumerate_paths_stops_cycles_and_honours_limit():
+    cycle = mermaid.enumerate_flow_paths("flowchart LR\n A-->B\n B-->A")
+    assert cycle.paths == [["A", "B"]]
+    assert cycle.has_cycle is True
+    limited = mermaid.enumerate_flow_paths("flowchart TD\n A-->B\n A-->C\n B-->D\n C-->D", limit=1)
+    assert limited.paths == [["A", "B", "D"]]
+    assert limited.truncated is True
+
+
 # --------------------------------------------------------------------------- #
 # frontmatter
 # --------------------------------------------------------------------------- #

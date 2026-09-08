@@ -41,6 +41,16 @@ def test_apply_selection_persists_to_frontmatter():
     assert info["selected"]["flow-login"] == "認証エラー"
 
 
+def test_generate_all_paths_preserves_manual_presets():
+    result = webapi.generate_all_paths(SAMPLE, "flow-login")
+    assert result["count"] == 3
+    assert result["paths"][0][0] == "A"
+    info = webapi.parse_doc(result["md"])
+    presets = info["diagrams"][0]["presets"]
+    assert "管理者・正常" in presets
+    assert len([name for name in presets if name.startswith("自動経路 ")]) == 3
+
+
 def test_import_result_roundtrip(tmp_path):
     payload = webapi.build_payload(SAMPLE, "flow-login",
                                   '{"role":"admin","error_count":0}', "")

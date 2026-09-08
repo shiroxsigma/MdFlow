@@ -125,6 +125,12 @@ def add_preset(payload: dict) -> dict:
                              payload.get("nodes", []))
 
 
+@app.post("/api/preset/all-paths")
+def generate_all_paths(payload: dict) -> dict:
+    return webapi.generate_all_paths(payload.get("md", ""), payload.get("diagram_id", ""),
+                                     int(payload.get("limit", 100)))
+
+
 @app.post("/api/export")
 def export_ppt(payload: dict) -> FileResponse:
     result = webapi.build_payload(payload.get("md", ""), payload.get("diagram_id", ""),

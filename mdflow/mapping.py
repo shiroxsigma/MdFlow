@@ -142,6 +142,34 @@ def upsert_preset(
     return f"{md_text}{sep}\n{_dump_block(data)}\n"
 
 
+def replace_generated_paths(
+    md_text: str,
+    diagram_id: str,
+    paths: list[list[str]],
+    *,
+    prefix: str = "自動経路 ",
+) -> str:
+    """対象図の自動経路プリセットだけを置換し、手動プリセットは保持する."""
+    generated = {
+        f"{prefix}{index:02d}: {' → '.join(path)}": _preset_spec("", path)
+        for index, path in enumerate(paths, 1)
+    }
+    for match in _BLOCK_RE.finditer(md_text):
+        data = yaml.safe_load(match.group(1)) or {}
+        if str(data.get("diagram", "")) != diagram_id:
+            continue
+        manual = {
+            str(name): spec for name, spec in (data.get("presets") or {}).items()
+            if not str(name).startswith(prefix)
+        }
+        data["presets"] = {**manual, **generated}
+        return md_text[:match.start()] + _dump_block(data) + md_text[match.end():]
+
+    data = {"diagram": diagram_id, "presets": generated}
+    separator = "" if md_text.endswith("\n") else "\n"
+    return f"{md_text}{separator}\n{_dump_block(data)}\n"
+
+
 # --------------------------------------------------------------------------- #
 # ルール式評価（安全な ast 手評価）
 # --------------------------------------------------------------------------- #
